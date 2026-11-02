@@ -1,7 +1,6 @@
 package com.nyxora.swiftdrop.auth.service.impl;
 
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.nyxora.swiftdrop.auth.security.oauth.GoogleTokenVerifier;
 import com.nyxora.swiftdrop.auth.config.JwtProperties;
 import com.nyxora.swiftdrop.auth.dto.SocialUserProfile;
 import com.nyxora.swiftdrop.auth.dto.request.*;
@@ -54,7 +53,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
     private final JwtProperties jwtProperties;
-    private final GoogleIdTokenVerifier googleIdTokenVerifier;
+    private final GoogleTokenVerifier googleTokenVerifier;
     private final AppleIdTokenVerifier appleIdTokenVerifier;
     private final FacebookClient facebookClient;
 
@@ -264,36 +263,7 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public AuthResponse authenticateGoogle(GoogleAuthRequest request) {
         log.info("[AuthService] Processing Google OAuth 2.0 authentication");
-
-        GoogleIdToken googleIdToken;
-        try {
-            googleIdToken = googleIdTokenVerifier.verify(request.idToken());
-        } catch (Exception e) {
-            log.error("[AuthService] Exception while verifying Google ID token: {}", e.getMessage());
-            throw new BadCredentialsException("Failed to verify Google ID token.");
-        }
-
-        if (googleIdToken == null) {
-            log.warn("[AuthService] Google ID token is invalid or expired");
-            throw new BadCredentialsException("Google ID token is invalid or expired.");
-        }
-
-        GoogleIdToken.Payload payload = googleIdToken.getPayload();
-        Boolean emailVerified = payload.getEmailVerified();
-        if (!Boolean.TRUE.equals(emailVerified)) {
-            log.warn("[AuthService] Google ID token email is unverified for: {}", payload.getEmail());
-            throw new BadCredentialsException("Google email address is not verified.");
-        }
-
-        String email = payload.getEmail().toLowerCase().trim();
-        String googleSub = payload.getSubject();
-        String name = (String) payload.get("name");
-        if (name == null || name.trim().isEmpty()) {
-            name = email.split("@")[0]; // Fallback for missing name claim
-        }
-        final String resolvedFullName = name.trim();
-
-        SocialUserProfile profile = new SocialUserProfile(AuthProvider.GOOGLE, googleSub, email, resolvedFullName);
+        SocialUserProfile profile = googleTokenVerifier.verify(request.idToken());
         return processSocialAuthentication(profile);
     }
 

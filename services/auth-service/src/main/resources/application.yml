@@ -41,8 +41,10 @@ app:
     refresh-token-expiration-ms: 604800000   # 7 days (in milliseconds)
   google:
     client-id: ${GOOGLE_CLIENT_ID:mock-google-client-id.apps.googleusercontent.com}
+    mock-enabled: ${GOOGLE_MOCK_ENABLED:true}
   apple:
     client-id: ${APPLE_CLIENT_ID:mock-apple-client-id}
+    mock-enabled: ${APPLE_MOCK_ENABLED:true}
   facebook:
     app-id: ${FACEBOOK_APP_ID:mock-facebook-app-id}
     app-secret: ${FACEBOOK_APP_SECRET:mock-facebook-app-secret}

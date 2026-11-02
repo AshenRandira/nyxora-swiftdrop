@@ -589,3 +589,4 @@ Total Execution Time: ~25 seconds
   - Merchant signed webhooks (`X-SwiftDrop-Signature` HMAC-SHA256) with Dead-Letter Exchange (DLQ) exponential backoff retries.
 - **Phase 8: `services/ai-assistant-service` (Port 8084):**
   - Generative AI customer support bot using Spring AI and Model Context Protocol (MCP) tools for fee estimates and tracking status.
+
