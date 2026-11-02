@@ -179,3 +179,4 @@ class PricingEngineTest {
                 .hasMessageContaining("No pricing rule found");
     }
 }
+
