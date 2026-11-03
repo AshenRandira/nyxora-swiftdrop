@@ -1,4 +1,4 @@
-package com.nyxora.swiftdrop.parcel.domain;
+package com.nyxora.swiftdrop.parcel.domain.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;
@@ -29,4 +29,3 @@ public abstract class BaseAuditableEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 }
-

@@ -1,7 +1,7 @@
 package com.nyxora.swiftdrop.parcel.pricing;
 
-import com.nyxora.swiftdrop.parcel.domain.DeliveryZone;
-import com.nyxora.swiftdrop.parcel.domain.PricingRule;
+import com.nyxora.swiftdrop.parcel.domain.entity.DeliveryZone;
+import com.nyxora.swiftdrop.parcel.domain.entity.PricingRule;
 import com.nyxora.swiftdrop.parcel.pricing.dto.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

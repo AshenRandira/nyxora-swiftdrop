@@ -1,6 +1,6 @@
 package com.nyxora.swiftdrop.parcel.domain.repository;
 
-import com.nyxora.swiftdrop.parcel.domain.DeliveryZone;
+import com.nyxora.swiftdrop.parcel.domain.entity.DeliveryZone;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

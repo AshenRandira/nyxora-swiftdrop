@@ -1,4 +1,4 @@
-package com.nyxora.swiftdrop.parcel.domain;
+package com.nyxora.swiftdrop.parcel.domain.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;
@@ -24,4 +24,3 @@ public abstract class BaseCreatedEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 }
-

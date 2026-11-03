@@ -1,8 +1,8 @@
 package com.nyxora.swiftdrop.parcel.pricing;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nyxora.swiftdrop.parcel.domain.DeliveryZone;
-import com.nyxora.swiftdrop.parcel.domain.PricingRule;
+import com.nyxora.swiftdrop.parcel.domain.entity.DeliveryZone;
+import com.nyxora.swiftdrop.parcel.domain.entity.PricingRule;
 import com.nyxora.swiftdrop.parcel.domain.enums.ParcelSize;
 import com.nyxora.swiftdrop.parcel.pricing.dto.CreatePricingRuleRequest;
 import com.nyxora.swiftdrop.parcel.pricing.dto.CreateZoneRequest;

@@ -1,6 +1,6 @@
 package com.nyxora.swiftdrop.parcel.domain.repository;
 
-import com.nyxora.swiftdrop.parcel.domain.Parcel;
+import com.nyxora.swiftdrop.parcel.domain.entity.Parcel;
 import com.nyxora.swiftdrop.parcel.domain.enums.ParcelStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;

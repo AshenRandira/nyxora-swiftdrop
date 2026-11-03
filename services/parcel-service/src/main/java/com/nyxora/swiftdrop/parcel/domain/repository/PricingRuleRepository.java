@@ -1,6 +1,6 @@
 package com.nyxora.swiftdrop.parcel.domain.repository;
 
-import com.nyxora.swiftdrop.parcel.domain.PricingRule;
+import com.nyxora.swiftdrop.parcel.domain.entity.PricingRule;
 import com.nyxora.swiftdrop.parcel.domain.enums.ParcelSize;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
