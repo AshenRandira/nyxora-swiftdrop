@@ -41,3 +41,4 @@ public class DeliveryZone {
     @Builder.Default
     private Boolean isActive = true;
 }
+

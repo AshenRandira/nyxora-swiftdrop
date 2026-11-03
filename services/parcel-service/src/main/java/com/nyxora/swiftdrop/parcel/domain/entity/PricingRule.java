@@ -53,3 +53,4 @@ public class PricingRule {
     @Builder.Default
     private BigDecimal sizeMultiplier = BigDecimal.ONE;
 }
+

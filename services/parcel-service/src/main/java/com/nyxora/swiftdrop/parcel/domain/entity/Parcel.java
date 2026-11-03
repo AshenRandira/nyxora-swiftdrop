@@ -80,3 +80,4 @@ public class Parcel extends BaseAuditableEntity {
     @Builder.Default
     private ParcelStatus currentStatus = ParcelStatus.CREATED;
 }
+

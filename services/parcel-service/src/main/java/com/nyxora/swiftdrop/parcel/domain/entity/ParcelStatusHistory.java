@@ -51,3 +51,4 @@ public class ParcelStatusHistory extends BaseCreatedEntity {
     @Column(name = "failure_reason", length = 100)
     private String failureReason;
 }
+
