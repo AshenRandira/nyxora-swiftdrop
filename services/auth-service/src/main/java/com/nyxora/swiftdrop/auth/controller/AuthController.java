@@ -20,6 +20,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -96,6 +97,9 @@ public class AuthController {
     @PostMapping("/logout")
     @Operation(summary = "User Logout", description = "Revokes refresh tokens and terminates the active user session.", security = @SecurityRequirement(name = "BearerAuth"))
     public ResponseEntity<Map<String, String>> logout(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+        if (userPrincipal == null) {
+            throw new BadCredentialsException("Authentication required to logout.");
+        }
         authService.logout(userPrincipal.getId());
         return ResponseEntity.ok(Map.of("message", "Session invalidated and logged out successfully."));
     }
@@ -103,6 +107,9 @@ public class AuthController {
     @GetMapping("/me")
     @Operation(summary = "Get Current User Profile", description = "Retrieves the authenticated user's ID, email, role, and profile details from their JWT access token.", security = @SecurityRequirement(name = "BearerAuth"))
     public ResponseEntity<UserProfileResponse> getCurrentUser(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+        if (userPrincipal == null) {
+            throw new BadCredentialsException("Authentication required. Please provide a valid Bearer token.");
+        }
         UserProfileResponse response = authService.getCurrentUserProfile(userPrincipal.getId());
         return ResponseEntity.ok(response);
     }

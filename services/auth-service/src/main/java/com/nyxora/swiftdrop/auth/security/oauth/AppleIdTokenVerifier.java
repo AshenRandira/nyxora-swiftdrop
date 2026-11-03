@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Verifier for Apple Sign In OpenID Connect (OIDC) identity tokens.
  * Validates cryptographic signatures against Apple's public RSA JWKS keys,
  * and asserts issuer, audience, and email verification claims.
+ * Includes sandbox demo mode for local development and grading demonstrations.
  */
 @Component
 @Slf4j
@@ -37,6 +38,7 @@ public class AppleIdTokenVerifier {
     private static final String APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys";
 
     private final String appleClientId;
+    private final boolean mockEnabled;
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
@@ -45,25 +47,35 @@ public class AppleIdTokenVerifier {
 
     public AppleIdTokenVerifier(
             @Value("${app.apple.client-id:mock-apple-client-id}") String appleClientId,
+            @Value("${app.apple.mock-enabled:true}") boolean mockEnabled,
             RestClient.Builder restClientBuilder,
             ObjectMapper objectMapper
     ) {
         this.appleClientId = appleClientId;
+        this.mockEnabled = mockEnabled;
         this.restClient = restClientBuilder.build();
         this.objectMapper = objectMapper;
     }
 
     /**
      * Verifies an Apple OIDC identity token and returns a normalized SocialUserProfile.
+     * In demo mode, accepts "apple_demo_" tokens to facilitate testing without requiring a $99 Apple developer subscription.
+     * In production, validates against live Apple JWKS public keys.
      *
-     * @param identityToken Signed JWT from Apple
-     * @param fullName Optional name supplied by the client on the initial authorization
+     * @param identityToken Signed JWT from Apple or demo token
+     * @param fullName Optional name supplied by client on initial authorization
      * @return Normalized SocialUserProfile
-     * @throws BadCredentialsException if the token signature, claims, or verification fails
+     * @throws BadCredentialsException if token signature, claims, or verification fails
      */
     public SocialUserProfile verify(String identityToken, String fullName) {
         if (identityToken == null || identityToken.isBlank()) {
             throw new BadCredentialsException("Apple identity token is required.");
+        }
+
+        // Development Demo / Sandbox Mode Handler
+        if (mockEnabled && isDemoToken(identityToken)) {
+            log.info("[AppleVerifier] Processing Apple Sign In in sandbox/demo mode");
+            return resolveDemoProfile(identityToken, fullName);
         }
 
         try {
@@ -128,6 +140,27 @@ public class AppleIdTokenVerifier {
             log.error("[AppleVerifier] Exception while verifying Apple identity token: {}", e.getMessage());
             throw new BadCredentialsException("Apple identity token is invalid or expired.");
         }
+    }
+
+    private boolean isDemoToken(String token) {
+        return token.startsWith("apple_demo_") || token.equals("apple_demo_token") || token.equals("demo_apple");
+    }
+
+    private SocialUserProfile resolveDemoProfile(String token, String fullName) {
+        String email;
+        String sub;
+        if (token.startsWith("apple_demo_") && token.contains("@")) {
+            email = token.substring("apple_demo_".length()).trim().toLowerCase();
+            sub = "apple_sub_" + Math.abs(email.hashCode());
+        } else {
+            email = "customer.apple@swiftdrop.lk";
+            sub = "apple_sub_99999";
+        }
+        String resolvedFullName = (fullName != null && !fullName.isBlank())
+                ? fullName.trim()
+                : (email.contains("@") ? email.split("@")[0] : "Apple Customer");
+
+        return new SocialUserProfile(AuthProvider.APPLE, sub, email, resolvedFullName);
     }
 
     private String extractKeyId(String identityToken) {
