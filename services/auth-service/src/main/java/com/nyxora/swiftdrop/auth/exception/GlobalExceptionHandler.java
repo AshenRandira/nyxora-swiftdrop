@@ -1,5 +1,6 @@
 package com.nyxora.swiftdrop.auth.exception;
 
+import com.nyxora.swiftdrop.common.security.util.PiiMaskingUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -35,7 +36,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(EmailAlreadyExistsException.class)
     public ProblemDetail handleEmailAlreadyExists(EmailAlreadyExistsException ex, HttpServletRequest request) {
-        log.warn("[GlobalExceptionHandler] Email conflict: {}", ex.getMessage());
+        log.warn("[GlobalExceptionHandler] Email conflict: {}", PiiMaskingUtil.maskText(ex.getMessage()));
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setTitle("Email Already Registered");
         problem.setType(URI.create("https://swiftdrop.lk/errors/email-already-exists"));

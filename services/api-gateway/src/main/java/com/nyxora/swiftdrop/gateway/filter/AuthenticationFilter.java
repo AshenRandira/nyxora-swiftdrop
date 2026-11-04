@@ -2,6 +2,7 @@ package com.nyxora.swiftdrop.gateway.filter;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nyxora.swiftdrop.common.security.util.PiiMaskingUtil;
 import com.nyxora.swiftdrop.gateway.util.JwtUtil;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -85,7 +86,8 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
         String role = claims.get("role", String.class);
         String email = claims.get("email", String.class);
 
-        log.debug("[AuthenticationFilter] Verified user [{}] with role [{}] for path [{}]", email, role, path);
+        log.debug("[AuthenticationFilter] Verified user [{}] with role [{}] for path [{}]",
+                PiiMaskingUtil.maskEmail(email), role, path);
 
         ServerHttpRequest mutatedRequest = request.mutate()
                 .headers(h -> {
