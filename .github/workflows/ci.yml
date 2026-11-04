@@ -7,8 +7,26 @@ on:
     branches: [ main, dev ]
 
 jobs:
+  build-shared-libraries:
+    name: Build & Test Shared Libraries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build and Test security-common
+        run: mvn clean install -B -f shared/security-common/pom.xml
+
   build-and-test:
     name: Build & Test (${{ matrix.service }})
+    needs: build-shared-libraries
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -27,6 +45,9 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: 'maven'
+
+      - name: Install Shared Libraries into Runner Cache
+        run: mvn clean install -DskipTests -B -f shared/security-common/pom.xml
 
       - name: Run Hermetic Unit and Integration Tests
         run: mvn test -B -f services/${{ matrix.service }}/pom.xml

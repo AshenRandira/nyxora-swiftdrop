@@ -16,6 +16,7 @@ import com.nyxora.swiftdrop.auth.repository.MerchantRepository;
 import com.nyxora.swiftdrop.auth.repository.UserRepository;
 import com.nyxora.swiftdrop.auth.service.AdminService;
 import com.nyxora.swiftdrop.auth.service.RefreshTokenService;
+import com.nyxora.swiftdrop.common.security.util.PiiMaskingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -93,7 +94,7 @@ public class AdminServiceImpl implements AdminService {
         }
 
         User savedUser = userRepository.save(user);
-        log.info("[AdminService] Successfully activated account for user: {}", savedUser.getEmail());
+        log.info("[AdminService] Successfully activated account for user: {}", PiiMaskingUtil.maskEmail(savedUser.getEmail()));
 
         return AdminDecisionResponse.of("User account approved and activated successfully.", savedUser);
     }
@@ -114,7 +115,8 @@ public class AdminServiceImpl implements AdminService {
         user.setStatusReason(request.reason().trim());
 
         User savedUser = userRepository.save(user);
-        log.info("[AdminService] Rejected application for user: {} with reason: {}", savedUser.getEmail(), request.reason());
+        log.info("[AdminService] Rejected application for user: {} with reason: {}",
+                PiiMaskingUtil.maskEmail(savedUser.getEmail()), request.reason());
 
         return AdminDecisionResponse.of("User account application rejected.", savedUser);
     }

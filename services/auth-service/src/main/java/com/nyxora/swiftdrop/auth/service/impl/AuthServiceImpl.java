@@ -25,6 +25,7 @@ import com.nyxora.swiftdrop.auth.security.oauth.AppleIdTokenVerifier;
 import com.nyxora.swiftdrop.auth.security.oauth.FacebookClient;
 import com.nyxora.swiftdrop.auth.service.AuthService;
 import com.nyxora.swiftdrop.auth.service.RefreshTokenService;
+import com.nyxora.swiftdrop.common.security.util.PiiMaskingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -62,7 +63,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse registerCustomer(CustomerRegisterRequest request) {
-        log.info("[AuthService] Processing customer registration for email: {}", request.email());
+        log.info("[AuthService] Processing customer registration for email: {}", PiiMaskingUtil.maskEmail(request.email()));
 
         if (userRepository.existsByEmail(request.email())) {
             throw new EmailAlreadyExistsException(request.email());
@@ -102,7 +103,7 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public RegistrationResponse registerMerchant(MerchantRegisterRequest request) {
         log.info("[AuthService] Processing merchant registration for email: {}, business: {}",
-                request.email(), request.businessName());
+                PiiMaskingUtil.maskEmail(request.email()), request.businessName());
 
         if (userRepository.existsByEmail(request.email())) {
             throw new EmailAlreadyExistsException(request.email());
@@ -158,7 +159,7 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public RegistrationResponse registerCourier(CourierRegisterRequest request) {
         log.info("[AuthService] Processing courier registration for email: {}, vehicle: {}",
-                request.email(), request.vehicleType());
+                PiiMaskingUtil.maskEmail(request.email()), request.vehicleType());
 
         if (userRepository.existsByEmail(request.email())) {
             throw new EmailAlreadyExistsException(request.email());
@@ -206,7 +207,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        log.info("[AuthService] Attempting login for email: {}", request.email());
+        log.info("[AuthService] Attempting login for email: {}", PiiMaskingUtil.maskEmail(request.email()));
 
         Authentication authentication;
         try {
@@ -217,7 +218,7 @@ public class AuthServiceImpl implements AuthService {
                     )
             );
         } catch (BadCredentialsException e) {
-            log.warn("[AuthService] Authentication failed for email: {}", request.email());
+            log.warn("[AuthService] Authentication failed for email: {}", PiiMaskingUtil.maskEmail(request.email()));
             throw new BadCredentialsException("Invalid email or password.");
         }
 
@@ -225,21 +226,21 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new BadCredentialsException("Invalid email or password."));
 
         if (user.getStatus() == UserStatus.PENDING_APPROVAL) {
-            log.warn("[AuthService] Login denied - account pending approval for: {}", user.getEmail());
+            log.warn("[AuthService] Login denied - account pending approval for: {}", PiiMaskingUtil.maskEmail(user.getEmail()));
             throw new AccountPendingApprovalException(
                     "Your account is currently awaiting administrator review and approval."
             );
         }
 
         if (user.getStatus() == UserStatus.SUSPENDED) {
-            log.warn("[AuthService] Login denied - account suspended for: {}", user.getEmail());
+            log.warn("[AuthService] Login denied - account suspended for: {}", PiiMaskingUtil.maskEmail(user.getEmail()));
             throw new AccountSuspendedException(
                     "Your account has been suspended by an administrator. Please contact support."
             );
         }
 
         if (user.getStatus() == UserStatus.REJECTED) {
-            log.warn("[AuthService] Login denied - account application rejected for: {}", user.getEmail());
+            log.warn("[AuthService] Login denied - account application rejected for: {}", PiiMaskingUtil.maskEmail(user.getEmail()));
             String reason = user.getStatusReason() != null ? user.getStatusReason() : "Application rejected by administrator.";
             throw new AccountRejectedException("Your account application was rejected. Reason: " + reason);
         }
@@ -297,11 +298,11 @@ public class AuthServiceImpl implements AuthService {
                         .map(existingUser -> {
                             if (existingUser.getProviderId() == null) {
                                 existingUser.setProviderId(profile.providerId());
-                                log.info("[AuthService] Linked {} providerId for existing user: {}", profile.provider(), profile.email());
+                                log.info("[AuthService] Linked {} providerId for existing user: {}", profile.provider(), PiiMaskingUtil.maskEmail(profile.email()));
                                 return userRepository.save(existingUser);
                             }
                             log.info("[AuthService] Authenticated existing user {} via {} without overwriting primary link ({})",
-                                    profile.email(), profile.provider(), existingUser.getAuthProvider());
+                                    PiiMaskingUtil.maskEmail(profile.email()), profile.provider(), existingUser.getAuthProvider());
                             return existingUser;
                         })
                         // Scenario C: Brand new user -> Auto-register as Customer
@@ -309,17 +310,17 @@ public class AuthServiceImpl implements AuthService {
 
         // State Machine validation (checks REJECTED alongside SUSPENDED and PENDING)
         if (user.getStatus() == UserStatus.PENDING_APPROVAL) {
-            log.warn("[AuthService] {} login denied - account pending approval for: {}", profile.provider(), user.getEmail());
+            log.warn("[AuthService] {} login denied - account pending approval for: {}", profile.provider(), PiiMaskingUtil.maskEmail(user.getEmail()));
             throw new AccountPendingApprovalException("Your account is currently awaiting administrator review and approval.");
         }
 
         if (user.getStatus() == UserStatus.SUSPENDED) {
-            log.warn("[AuthService] {} login denied - account suspended for: {}", profile.provider(), user.getEmail());
+            log.warn("[AuthService] {} login denied - account suspended for: {}", profile.provider(), PiiMaskingUtil.maskEmail(user.getEmail()));
             throw new AccountSuspendedException("Your account has been suspended by an administrator. Please contact support.");
         }
 
         if (user.getStatus() == UserStatus.REJECTED) {
-            log.warn("[AuthService] {} login denied - account application rejected for: {}", profile.provider(), user.getEmail());
+            log.warn("[AuthService] {} login denied - account application rejected for: {}", profile.provider(), PiiMaskingUtil.maskEmail(user.getEmail()));
             String reason = user.getStatusReason() != null ? user.getStatusReason() : "Application rejected by administrator.";
             throw new AccountRejectedException("Your account application was rejected. Reason: " + reason);
         }
@@ -329,7 +330,7 @@ public class AuthServiceImpl implements AuthService {
         String refreshToken = refreshTokenService.createRefreshToken(user);
 
         log.info("[AuthService] Successfully authenticated {} user: {} with role: {}",
-                profile.provider(), user.getEmail(), user.getRole().getName());
+                profile.provider(), PiiMaskingUtil.maskEmail(user.getEmail()), user.getRole().getName());
 
         return AuthResponse.of(
                 accessToken,
@@ -343,7 +344,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private User autoRegisterSocialCustomer(SocialUserProfile profile) {
-        log.info("[AuthService] Auto-registering new customer via {} OAuth: {}", profile.provider(), profile.email());
+        log.info("[AuthService] Auto-registering new customer via {} OAuth: {}", profile.provider(), PiiMaskingUtil.maskEmail(profile.email()));
 
         Role customerRole = roleRepository.findByName(RoleName.ROLE_CUSTOMER)
                 .orElseThrow(() -> new ResourceNotFoundException("Role 'ROLE_CUSTOMER' not found"));
