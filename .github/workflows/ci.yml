@@ -50,4 +50,7 @@ jobs:
         run: mvn clean install -DskipTests -B -f shared/security-common/pom.xml
 
       - name: Run Hermetic Unit and Integration Tests
-        run: mvn test -B -f services/${{ matrix.service }}/pom.xml
+        run: mvn verify -B -f services/${{ matrix.service }}/pom.xml
+
+
+        
