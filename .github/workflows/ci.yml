@@ -29,4 +29,7 @@ jobs:
           cache: 'maven'
 
       - name: Run Hermetic Unit and Integration Tests
-        run: mvn test -B -f services/${{ matrix.service }}/pom.xml
+        run: mvn verify -B -f services/${{ matrix.service }}/pom.xml
+
+
+        
