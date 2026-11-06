@@ -52,7 +52,7 @@ public class ParcelStatusNotificationConsumer {
         }
 
         String maskedEmail = PiiMaskingUtil.maskEmail(event.getRecipientEmail());
-        String maskedPhone = PiiMaskingUtil.maskPhone(event.getRecipientPhone());
+        String maskedPhone = PiiMaskingUtil.maskPhoneNumber(event.getRecipientPhone());
 
         log.info("Successfully received AMQP parcel status event: trackingNumber={}, status={}, recipientEmail={}, recipientPhone={}",
                 event.getTrackingNumber(),
