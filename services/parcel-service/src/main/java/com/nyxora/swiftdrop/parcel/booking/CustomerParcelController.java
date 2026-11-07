@@ -4,6 +4,8 @@ import com.nyxora.swiftdrop.parcel.booking.dto.BookingResponse;
 import com.nyxora.swiftdrop.parcel.booking.dto.CustomerBookingRequest;
 import com.nyxora.swiftdrop.parcel.pricing.ParcelQuoteRequest;
 import com.nyxora.swiftdrop.parcel.pricing.ParcelQuoteResponse;
+import com.nyxora.swiftdrop.parcel.tracking.ParcelTrackingService;
+import com.nyxora.swiftdrop.parcel.tracking.dto.ParcelTrackingResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -20,8 +22,8 @@ import java.util.UUID;
 
 /**
  * Member 4 — Dedicated Customer & Merchant Parcel Operations Controller.
- * Provides thin REST endpoints for rate estimation and delivery booking
- * under {@code /api/v1/parcels/**}.
+ * Provides thin REST endpoints for rate estimation, delivery booking, public tracking,
+ * PDF receipts, and paginated order history under {@code /api/v1/parcels/**}.
  */
 @Slf4j
 @RestController
@@ -31,6 +33,7 @@ import java.util.UUID;
 public class CustomerParcelController {
 
     private final CustomerBookingService customerBookingService;
+    private final ParcelTrackingService parcelTrackingService;
 
     /**
      * Public instant rate quote endpoint.
@@ -70,5 +73,21 @@ public class CustomerParcelController {
         log.info("Processing parcel booking request for senderUserId={}", senderUserId);
         BookingResponse response = customerBookingService.bookParcel(request, senderUserId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * Public parcel tracking endpoint.
+     * Returns real-time lifecycle status and chronological milestone history with recipient PII masked.
+     */
+    @GetMapping("/track/{trackingNumber}")
+    @Operation(
+            summary = "Track a delivery by tracking number",
+            description = "Public endpoint providing real-time lifecycle tracking and chronological milestone timeline with PII masking."
+    )
+    public ResponseEntity<ParcelTrackingResponse> trackParcel(
+            @PathVariable String trackingNumber
+    ) {
+        log.debug("Received public tracking lookup request for trackingNumber={}", trackingNumber);
+        return ResponseEntity.ok(parcelTrackingService.trackParcel(trackingNumber));
     }
 }
