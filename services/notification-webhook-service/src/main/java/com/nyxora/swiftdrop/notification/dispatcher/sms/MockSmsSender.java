@@ -41,11 +41,11 @@ public class MockSmsSender {
 
         if (message == null || message.isBlank()) {
             log.warn("Cannot dispatch SMS: message content is null or empty for recipient: {}",
-                    PiiMaskingUtil.maskPhone(recipientPhone));
+                    PiiMaskingUtil.maskPhoneNumber(recipientPhone));
             return false;
         }
 
-        String maskedPhone = PiiMaskingUtil.maskPhone(recipientPhone);
+        String maskedPhone = PiiMaskingUtil.maskPhoneNumber(recipientPhone);
 
         log.info("[MOCK SMS GATEWAY] Message dispatched successfully: recipient={}, length={} chars, text='{}'",
                 maskedPhone,
