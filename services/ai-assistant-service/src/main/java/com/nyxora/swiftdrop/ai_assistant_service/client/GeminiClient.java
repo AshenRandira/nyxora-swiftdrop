@@ -3,7 +3,7 @@ package com.nyxora.swiftdrop.ai_assistant_service.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nyxora.swiftdrop.ai_assistant_service.exception.GeminiServiceException;
-
+import com.nyxora.swiftdrop.common.security.util.PiiMaskingUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,7 +31,7 @@ public class GeminiClient {
 
     public GeminiClient(
             @Value("${gemini.api.key:}") String apiKey,
-            @Value("${gemini.model:gemini-3.5-flash-lite}") String model,
+            @Value("${gemini.model:gemini-2.0-flash}") String model,
             @Value("${gemini.api.url:https://generativelanguage.googleapis.com/v1beta}")
             String baseUrl,
             ObjectMapper objectMapper) {
@@ -54,7 +54,51 @@ public class GeminiClient {
         log.info("Gemini client initialized. Model: {}", model);
     }
 
+    /**
+     * Fluent builder for prompts (compatible with ChatClient prompt syntax).
+     */
+    public PromptBuilder prompt() {
+        return new PromptBuilder();
+    }
+
+    public class PromptBuilder {
+        private String systemInstruction;
+        private String userMessage;
+
+        public PromptBuilder system(String systemInstruction) {
+            this.systemInstruction = systemInstruction;
+            return this;
+        }
+
+        public PromptBuilder user(String userMessage) {
+            this.userMessage = userMessage;
+            return this;
+        }
+
+        public CallBuilder call() {
+            return new CallBuilder(systemInstruction, userMessage);
+        }
+    }
+
+    public class CallBuilder {
+        private final String systemInstruction;
+        private final String userMessage;
+
+        public CallBuilder(String systemInstruction, String userMessage) {
+            this.systemInstruction = systemInstruction;
+            this.userMessage = userMessage;
+        }
+
+        public String content() {
+            return generateContent(systemInstruction, userMessage);
+        }
+    }
+
     public String generateContent(String prompt) {
+        return generateContent(null, prompt);
+    }
+
+    public String generateContent(String systemInstruction, String prompt) {
 
         if (apiKey == null || apiKey.isBlank()
                 || "your_gemini_api_key_here".equalsIgnoreCase(apiKey)) {
@@ -72,16 +116,32 @@ public class GeminiClient {
             );
         }
 
-        Map<String, Object> requestBody = Map.of(
-                "contents", List.of(
-                        Map.of(
-                                "role", "user",
-                                "parts", List.of(
-                                        Map.of("text", prompt)
-                                )
-                        )
-                )
-        );
+        log.info("Sending request to Gemini model '{}' with prompt: '{}'",
+                model, PiiMaskingUtil.maskText(prompt));
+
+        Map<String, Object> requestBody;
+        if (systemInstruction != null && !systemInstruction.isBlank()) {
+            requestBody = Map.of(
+                    "system_instruction", Map.of(
+                            "parts", List.of(Map.of("text", systemInstruction))
+                    ),
+                    "contents", List.of(
+                            Map.of(
+                                    "role", "user",
+                                    "parts", List.of(Map.of("text", prompt))
+                            )
+                    )
+            );
+        } else {
+            requestBody = Map.of(
+                    "contents", List.of(
+                            Map.of(
+                                    "role", "user",
+                                    "parts", List.of(Map.of("text", prompt))
+                            )
+                    )
+            );
+        }
 
         try {
             String rawResponse = restClient.post()
@@ -114,67 +174,65 @@ public class GeminiClient {
             );
 
             throw new GeminiServiceException(
-                    "AI provider is temporarily unavailable"
+                    "AI service temporarily unavailable"
             );
         }
     }
 
-    private String extractTextFromResponse(String jsonResponse) {
-
-        if (jsonResponse == null || jsonResponse.isBlank()) {
-            throw new GeminiServiceException(
-                    "AI provider returned an empty response"
-            );
-        }
+    private String extractTextFromResponse(String rawResponse) {
 
         try {
-            JsonNode root = objectMapper.readTree(jsonResponse);
+            JsonNode root = objectMapper.readTree(rawResponse);
 
             JsonNode candidates = root.path("candidates");
 
-            if (!candidates.isArray() || candidates.isEmpty()) {
+            if (candidates.isMissingNode()
+                    || !candidates.isArray()
+                    || candidates.isEmpty()) {
+
+                log.error("Gemini API response contained no candidates");
+
                 throw new GeminiServiceException(
-                        "AI provider returned no usable response"
+                        "AI provider returned empty response"
                 );
             }
 
-            JsonNode parts = candidates.get(0)
+            JsonNode firstCandidate = candidates.get(0);
+
+            JsonNode parts = firstCandidate
                     .path("content")
                     .path("parts");
 
-            if (!parts.isArray() || parts.isEmpty()) {
+            if (parts.isMissingNode()
+                    || !parts.isArray()
+                    || parts.isEmpty()) {
+
+                log.error("Gemini candidate content contained no parts");
+
                 throw new GeminiServiceException(
-                        "AI provider returned no text content"
+                        "AI provider returned malformed response"
                 );
             }
 
-            StringBuilder result = new StringBuilder();
+            String text = parts.get(0).path("text").asText();
 
-            for (JsonNode part : parts) {
+            if (text.isBlank()) {
 
-                JsonNode textNode = part.path("text");
+                log.error("Gemini response text part is blank");
 
-                if (textNode.isTextual()) {
-                    result.append(textNode.asText());
-                }
-            }
-
-            String response = result.toString().trim();
-
-            if (response.isEmpty()) {
                 throw new GeminiServiceException(
-                        "AI provider returned no text content"
+                        "AI provider returned blank response"
                 );
             }
 
-            return response;
+            return text;
 
         } catch (IOException ex) {
 
-            log.error("Unable to parse Gemini response");
+            log.error("Failed to parse Gemini response JSON");
 
             throw new GeminiServiceException(
-                    "AI provider returned an invalid response"
+                    "Failed to process AI provider response"
             );
         }
     }

@@ -1,4 +1,4 @@
-package com.nyxora.swiftdrop.ai_assistant_service.dto;
+package com.nyxora.swiftdrop.ai_assistant_service.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
