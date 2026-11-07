@@ -52,6 +52,9 @@ class CustomerParcelControllerTest {
     @MockBean
     private ParcelTrackingService parcelTrackingService;
 
+    @MockBean
+    private com.nyxora.swiftdrop.parcel.receipt.ParcelReceiptService parcelReceiptService;
+
     // ─────────────────────────────────────────────
     //  QUOTE ENDPOINT: POST /api/v1/parcels/quote
     // ─────────────────────────────────────────────
@@ -319,5 +322,37 @@ class CustomerParcelControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Bad Request"))
                 .andExpect(jsonPath("$.detail").value("Parcel with tracking number 'SD-UNKNOWN-000000' was not found."));
+    }
+
+    // ─────────────────────────────────────────────
+    //  RECEIPT PDF ENDPOINT: GET /api/v1/parcels/{id}/receipt/pdf
+    // ─────────────────────────────────────────────
+
+    @Test
+    @DisplayName("GET /api/v1/parcels/{id}/receipt/pdf returns 403 when unauthenticated")
+    void downloadReceiptPdf_unauthenticated_returns403() throws Exception {
+        UUID parcelId = UUID.randomUUID();
+
+        mockMvc.perform(get("/api/v1/parcels/" + parcelId + "/receipt/pdf"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/parcels/{id}/receipt/pdf returns 200 OK and PDF bytes when authorized")
+    void downloadReceiptPdf_authorized_returnsPdfBytes() throws Exception {
+        UUID parcelId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        byte[] mockPdf = "%PDF-1.4 Mock Invoice Data".getBytes();
+
+        when(parcelReceiptService.generateReceiptPdf(eq(parcelId), eq(userId), any())).thenReturn(mockPdf);
+
+        mockMvc.perform(get("/api/v1/parcels/" + parcelId + "/receipt/pdf")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-User-Role", "ROLE_CUSTOMER"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType(MediaType.APPLICATION_PDF))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string(
+                        org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"SwiftDrop_Receipt_" + parcelId + ".pdf\""))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().bytes(mockPdf));
     }
 }
