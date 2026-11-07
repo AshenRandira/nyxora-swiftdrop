@@ -160,3 +160,4 @@ sequenceDiagram
 - **Zone Inactivity:** If either the origin or destination zone is marked inactive, `GlobalExceptionHandler` produces HTTP 400 Bad Request with RFC 7807 problem details (`"Zone is not operational"`).
 - **Tracking Number Collision Avoidance:** Up to 5 collision retries with backoff ensure uniqueness even during peak concurrent booking bursts.
 - **AMQP Broker Outage Resilience:** When RabbitMQ is unreachable, message publishing is caught and logged at `ERROR` level without aborting the transactional parcel booking commit, guaranteeing customer order durability.
+
