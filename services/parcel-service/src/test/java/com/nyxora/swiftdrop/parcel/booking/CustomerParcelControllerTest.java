@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -54,6 +55,9 @@ class CustomerParcelControllerTest {
 
     @MockBean
     private com.nyxora.swiftdrop.parcel.receipt.ParcelReceiptService parcelReceiptService;
+
+    @MockBean
+    private com.nyxora.swiftdrop.parcel.history.ParcelHistoryService parcelHistoryService;
 
     // ─────────────────────────────────────────────
     //  QUOTE ENDPOINT: POST /api/v1/parcels/quote
@@ -354,5 +358,95 @@ class CustomerParcelControllerTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string(
                         org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"SwiftDrop_Receipt_" + parcelId + ".pdf\""))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().bytes(mockPdf));
+    }
+
+    // ─────────────────────────────────────────────
+    //  CUSTOMER ORDER HISTORY: GET /api/v1/parcels/customer/orders
+    // ─────────────────────────────────────────────
+
+    @Test
+    @DisplayName("GET /api/v1/parcels/customer/orders returns 403 when unauthenticated")
+    void getCustomerOrders_unauthenticated_returns403() throws Exception {
+        mockMvc.perform(get("/api/v1/parcels/customer/orders"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/parcels/customer/orders returns 200 OK with paginated orders when authorized")
+    void getCustomerOrders_authorized_returns200() throws Exception {
+        UUID userId = UUID.randomUUID();
+        com.nyxora.swiftdrop.parcel.history.dto.PagedOrderResponse<com.nyxora.swiftdrop.parcel.history.dto.OrderSummaryDto> pagedResponse =
+                com.nyxora.swiftdrop.parcel.history.dto.PagedOrderResponse.<com.nyxora.swiftdrop.parcel.history.dto.OrderSummaryDto>builder()
+                        .content(List.of(
+                                com.nyxora.swiftdrop.parcel.history.dto.OrderSummaryDto.builder()
+                                        .parcelId(UUID.randomUUID())
+                                        .trackingNumber("SD-20261107-7K9P2X")
+                                        .currentStatus(ParcelStatus.CREATED)
+                                        .recipientName("Kamal Perera")
+                                        .estimatedFee(new BigDecimal("530.00"))
+                                        .currency("LKR")
+                                        .build()
+                        ))
+                        .pageNumber(0)
+                        .pageSize(10)
+                        .totalElements(1)
+                        .totalPages(1)
+                        .isFirst(true)
+                        .isLast(true)
+                        .build();
+
+        when(parcelHistoryService.getCustomerOrders(eq(userId), any(), any())).thenReturn(pagedResponse);
+
+        mockMvc.perform(get("/api/v1/parcels/customer/orders")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-User-Role", "ROLE_CUSTOMER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].trackingNumber").value("SD-20261107-7K9P2X"))
+                .andExpect(jsonPath("$.content[0].currency").value("LKR"));
+    }
+
+    // ─────────────────────────────────────────────
+    //  MERCHANT ORDER HISTORY: GET /api/v1/parcels/merchant/orders
+    // ─────────────────────────────────────────────
+
+    @Test
+    @DisplayName("GET /api/v1/parcels/merchant/orders returns 403 when unauthenticated")
+    void getMerchantOrders_unauthenticated_returns403() throws Exception {
+        mockMvc.perform(get("/api/v1/parcels/merchant/orders"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/parcels/merchant/orders returns 200 OK with KPI counters and orders")
+    void getMerchantOrders_authorized_returns200() throws Exception {
+        UUID merchantId = UUID.randomUUID();
+        com.nyxora.swiftdrop.parcel.history.dto.MerchantOrderHistoryResponse merchantResponse =
+                com.nyxora.swiftdrop.parcel.history.dto.MerchantOrderHistoryResponse.builder()
+                        .totalOrders(50)
+                        .inTransitCount(10)
+                        .deliveredCount(38)
+                        .failedCount(2)
+                        .orders(com.nyxora.swiftdrop.parcel.history.dto.PagedOrderResponse.<com.nyxora.swiftdrop.parcel.history.dto.OrderSummaryDto>builder()
+                                .content(Collections.emptyList())
+                                .pageNumber(0)
+                                .pageSize(10)
+                                .totalElements(0)
+                                .totalPages(0)
+                                .isFirst(true)
+                                .isLast(true)
+                                .build())
+                        .build();
+
+        when(parcelHistoryService.getMerchantOrders(eq(merchantId), any(), any())).thenReturn(merchantResponse);
+
+        mockMvc.perform(get("/api/v1/parcels/merchant/orders")
+                        .header("X-User-Id", merchantId.toString())
+                        .header("X-User-Role", "ROLE_MERCHANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalOrders").value(50))
+                .andExpect(jsonPath("$.inTransitCount").value(10))
+                .andExpect(jsonPath("$.deliveredCount").value(38))
+                .andExpect(jsonPath("$.failedCount").value(2));
     }
 }
