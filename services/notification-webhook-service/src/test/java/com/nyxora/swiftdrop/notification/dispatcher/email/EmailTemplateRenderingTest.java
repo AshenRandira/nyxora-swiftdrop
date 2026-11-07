@@ -87,7 +87,8 @@ class EmailTemplateRenderingTest {
         assertTrue(html.contains("Kamal Silva"));
         assertTrue(html.contains("Signed by recipient"));
         assertTrue(html.contains("http://localhost:3000/track/SWIFT-DELIVERED-003"));
-        assertTrue(html.contains("Parcel Delivered Successfully"));
+        assertTrue(html.contains("delivered successfully"));
+        assertTrue(html.contains("View Delivery Confirmation"));
     }
 
     @Test

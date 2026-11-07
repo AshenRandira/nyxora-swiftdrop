@@ -23,6 +23,10 @@ spring:
           auth: false
           starttls:
             enable: false
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: false
 
 app:
   notification:
