@@ -43,6 +43,9 @@ public class WebhookRabbitConfig {
     public static final String RETRY_PROCESS_QUEUE = "swiftdrop.webhook.retry.process";
     public static final String RETRY_PROCESS_ROUTING_KEY = "webhook.retry.dispatch";
 
+    public static final String RETRY_PARKING_LOT_QUEUE = "swiftdrop.webhook.retry.parking-lot";
+    public static final String RETRY_PARKING_LOT_ROUTING_KEY = "webhook.retry.parking-lot";
+
     public static final String RETRY_QUEUE_10S = "swiftdrop.webhook.retry.10s";
     public static final String RETRY_QUEUE_30S = "swiftdrop.webhook.retry.30s";
     public static final String RETRY_QUEUE_2M = "swiftdrop.webhook.retry.2m";
@@ -82,6 +85,8 @@ public class WebhookRabbitConfig {
     @Bean
     public Queue webhookRetryProcessQueue() {
         return QueueBuilder.durable(RETRY_PROCESS_QUEUE)
+                .deadLetterExchange(dlxExchangeName)
+                .deadLetterRoutingKey(RETRY_PARKING_LOT_ROUTING_KEY)
                 .build();
     }
 
@@ -92,6 +97,23 @@ public class WebhookRabbitConfig {
         return BindingBuilder.bind(webhookRetryProcessQueue)
                 .to(webhookEventsTopicExchange)
                 .with(RETRY_PROCESS_ROUTING_KEY);
+    }
+
+    // ─── Quarantine / Parking-Lot Queue for Poison or Failed Messages ─────
+
+    @Bean
+    public Queue webhookRetryParkingLotQueue() {
+        return QueueBuilder.durable(RETRY_PARKING_LOT_QUEUE)
+                .build();
+    }
+
+    @Bean
+    public Binding webhookRetryParkingLotBinding(
+            Queue webhookRetryParkingLotQueue,
+            DirectExchange webhookDeadLetterExchange) {
+        return BindingBuilder.bind(webhookRetryParkingLotQueue)
+                .to(webhookDeadLetterExchange)
+                .with(RETRY_PARKING_LOT_ROUTING_KEY);
     }
 
     // ─── 5-Tier TTL Delay Queues (Dead-Letter back to RETRY_PROCESS_QUEUE) ─

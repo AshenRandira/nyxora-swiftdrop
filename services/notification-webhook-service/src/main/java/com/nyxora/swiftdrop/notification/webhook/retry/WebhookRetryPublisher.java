@@ -89,13 +89,8 @@ public class WebhookRetryPublisher {
                 nextAttemptNumber
         );
 
-        // 4. Update and persist delivery log BEFORE publishing (prevents race conditions)
-        deliveryLog.setRetryCount(nextAttemptNumber);
-        deliveryLog.setDeliveryStatus(WebhookDeliveryStatus.RETRYING);
-        deliveryLog.setNextRetryAt(nextRetryAt);
-        logRepository.save(deliveryLog);
-
-        // 5. Publish to DLX exchange with PERSISTENT delivery mode
+        // 4. Publish to DLX exchange with PERSISTENT delivery mode first
+        // If broker publishing fails, we do NOT advance the DB retryCount, avoiding phantom retry states.
         try {
             rabbitTemplate.convertAndSend(
                     WebhookRabbitConfig.DEAD_LETTER_EXCHANGE,
@@ -111,14 +106,21 @@ public class WebhookRetryPublisher {
 
             log.info("Successfully enqueued retry #{} to {} via key {}",
                     nextAttemptNumber, WebhookRabbitConfig.DEAD_LETTER_EXCHANGE, routingKey);
-            return true;
 
         } catch (Exception ex) {
             log.error("Failed to publish retry message to RabbitMQ for deliveryLogId={}, routingKey={}: {}",
                     deliveryLog.getId(), routingKey, ex.getMessage(), ex);
-            // Re-throw to prevent silently swallowing message publishing failures
+            // Re-throw so caller knows publication failed; DB is NOT updated with the unqueued attempt count!
             throw new IllegalStateException("RabbitMQ retry publication failed for deliveryLogId=" + deliveryLog.getId(), ex);
         }
+
+        // 5. Update and persist delivery log ONLY AFTER successful broker dispatch
+        deliveryLog.setRetryCount(nextAttemptNumber);
+        deliveryLog.setDeliveryStatus(WebhookDeliveryStatus.RETRYING);
+        deliveryLog.setNextRetryAt(nextRetryAt);
+        logRepository.save(deliveryLog);
+
+        return true;
     }
 }
 
