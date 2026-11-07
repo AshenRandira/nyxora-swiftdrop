@@ -122,5 +122,65 @@ public class WebhookRetryPublisher {
 
         return true;
     }
+
+    /**
+     * Publishes a manual retry message for an eligible failed webhook delivery (Task 3.6).
+     *
+     * <p>Design & Infinite-Loop Prevention:
+     * <ul>
+     *   <li>Retains {@code retryCount} at {@link WebhookRetryPolicy#MAX_RETRIES} (5) so that
+     *       if this manual attempt fails, {@link WebhookRetryConsumer} immediately transitions
+     *       the record back to {@code DEAD_LETTER} rather than scheduling an infinite cascading
+     *       automatic retry sequence.</li>
+     *   <li>Routes directly to {@link WebhookRabbitConfig#MAIN_TOPIC_EXCHANGE} via
+     *       {@link WebhookRabbitConfig#RETRY_PROCESS_ROUTING_KEY} for immediate processing.</li>
+     *   <li>Publishes with persistent delivery mode and custom audit headers.</li>
+     * </ul>
+     * </p>
+     *
+     * @param deliveryLog the existing delivery log entity
+     * @return true if published successfully
+     * @throws IllegalStateException if RabbitMQ publication fails
+     */
+    public boolean publishManualRetry(WebhookDeliveryLog deliveryLog) {
+        if (deliveryLog == null || deliveryLog.getId() == null) {
+            throw new IllegalArgumentException("Cannot publish manual retry: deliveryLog or ID is null");
+        }
+
+        int attemptNumber = deliveryLog.getRetryCount() != null ? deliveryLog.getRetryCount() : WebhookRetryPolicy.MAX_RETRIES;
+
+        WebhookRetryMessage retryMessage = new WebhookRetryMessage(
+                deliveryLog.getId(),
+                deliveryLog.getMerchantId(),
+                deliveryLog.getParcelId(),
+                deliveryLog.getEventType(),
+                deliveryLog.getPayload(),
+                attemptNumber
+        );
+
+        try {
+            rabbitTemplate.convertAndSend(
+                    WebhookRabbitConfig.MAIN_TOPIC_EXCHANGE,
+                    WebhookRabbitConfig.RETRY_PROCESS_ROUTING_KEY,
+                    retryMessage,
+                    message -> {
+                        message.getMessageProperties().setDeliveryMode(MessageDeliveryMode.PERSISTENT);
+                        message.getMessageProperties().setContentType(MediaType.APPLICATION_JSON_VALUE);
+                        message.getMessageProperties().setHeader("x-swiftdrop-retry-count", attemptNumber);
+                        message.getMessageProperties().setHeader("x-swiftdrop-manual-retry", true);
+                        return message;
+                    }
+            );
+
+            log.info("Successfully enqueued manual retry for deliveryLogId={}, merchantId={} to {}",
+                    deliveryLog.getId(), deliveryLog.getMerchantId(), WebhookRabbitConfig.RETRY_PROCESS_QUEUE);
+            return true;
+
+        } catch (Exception ex) {
+            log.error("Failed to publish manual retry message to RabbitMQ for deliveryLogId={}: {}",
+                    deliveryLog.getId(), ex.getMessage(), ex);
+            throw new IllegalStateException("RabbitMQ manual retry publication failed for deliveryLogId=" + deliveryLog.getId(), ex);
+        }
+    }
 }
 
