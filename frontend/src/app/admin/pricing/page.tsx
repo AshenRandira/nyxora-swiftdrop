@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import AppShell from '@/components/layout/AppShell';
 import {
   MapPin,
@@ -64,6 +64,19 @@ const SEED_RULES: PricingRule[] = [
   { id: 3, originZone: SEED_ZONES[0], destinationZone: SEED_ZONES[3], baseFee: 550, ratePerKg: 140, parcelSize: 'LARGE', sizeMultiplier: 1.5 },
 ];
 
+const roundCurrency = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+
+const readApiError = async (response: Response) => {
+  try {
+    const payload = await response.json();
+    if (payload?.detail) return payload.detail as string;
+    if (payload?.title) return payload.title as string;
+  } catch {
+    // Fall through to the HTTP status when the response is not JSON.
+  }
+  return `Request failed with HTTP ${response.status}`;
+};
+
 export default function AdminPricingPage() {
   const [zones, setZones] = useState<DeliveryZone[]>(SEED_ZONES);
   const [rules, setRules] = useState<PricingRule[]>(SEED_RULES);
@@ -94,29 +107,33 @@ export default function AdminPricingPage() {
   const [calcSize, setCalcSize] = useState<'SMALL' | 'MEDIUM' | 'LARGE'>('MEDIUM');
   const [calcTier, setCalcTier] = useState<'STANDARD' | 'MERCHANT' | 'EXPRESS'>('EXPRESS');
   const [quoteResult, setQuoteResult] = useState<QuoteResponse | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [pageError, setPageError] = useState('');
+  const [pageNotice, setPageNotice] = useState('');
 
-  // Fetch real data if backend available
+  const adminHeaders = useCallback(() => ({
+    'Authorization': `Bearer ${localStorage.getItem('swiftdrop_access_token') || ''}`,
+    'Content-Type': 'application/json',
+  }), []);
+
+  const loadPricingData = useCallback(async () => {
+    const [zonesRes, rulesRes] = await Promise.all([
+      fetch('/api/v1/zones', { headers: adminHeaders() }),
+      fetch('/api/v1/pricing/rules', { headers: adminHeaders() }),
+    ]);
+
+    if (!zonesRes.ok) throw new Error(await readApiError(zonesRes));
+    if (!rulesRes.ok) throw new Error(await readApiError(rulesRes));
+
+    const [zData, rData] = await Promise.all([zonesRes.json(), rulesRes.json()]);
+    setZones(Array.isArray(zData) ? zData : []);
+    setRules(Array.isArray(rData) ? rData : []);
+  }, [adminHeaders]);
+
+  // Load live data when available; seed data keeps the simulator usable offline.
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [zonesRes, rulesRes] = await Promise.all([
-          fetch('/api/v1/zones', { headers: { 'Authorization': `Bearer ${localStorage.getItem('swiftdrop_access_token') || ''}`, 'X-User-Role': 'ROLE_ADMIN' } }),
-          fetch('/api/v1/pricing/rules', { headers: { 'Authorization': `Bearer ${localStorage.getItem('swiftdrop_access_token') || ''}`, 'X-User-Role': 'ROLE_ADMIN' } })
-        ]);
-        if (zonesRes.ok) {
-          const zData = await zonesRes.json();
-          if (zData && zData.length > 0) setZones(zData);
-        }
-        if (rulesRes.ok) {
-          const rData = await rulesRes.json();
-          if (rData && rData.length > 0) setRules(rData);
-        }
-      } catch {
-        // Fallback to seed data seamlessly
-      }
-    };
-    fetchData();
-  }, []);
+    loadPricingData().catch(() => undefined);
+  }, [loadPricingData]);
 
   // Recalculate Live Quote whenever parameters change
   useEffect(() => {
@@ -128,8 +145,8 @@ export default function AdminPricingPage() {
     const dest = zones.find(z => z.id === calcDest) || zones[1] || zones[0];
     if (!origin || !dest) return;
 
-    // Find rule or fallback to sensible default
-    let rule = rules.find(r =>
+    // Find rule or fallback to sensible default for the offline simulator.
+    const rule = rules.find(r =>
       r.originZone.id === origin.id &&
       r.destinationZone.id === dest.id &&
       r.parcelSize === calcSize
@@ -140,78 +157,140 @@ export default function AdminPricingPage() {
     const sizeMultipliers = { 'SMALL': 1.0, 'MEDIUM': 1.25, 'LARGE': 1.5 };
     const sizeMult = rule ? rule.sizeMultiplier : sizeMultipliers[calcSize];
 
-    const weightCharge = calcWeight * ratePerKg;
-    const subtotal = (baseFee + weightCharge) * sizeMult;
-    const zoneSurcharges = origin.baseSurcharge + dest.baseSurcharge;
+    const standardWeightCharge = roundCurrency(calcWeight * ratePerKg);
+    let displayedBaseFee = baseFee;
+    let displayedWeightCharge = standardWeightCharge;
+    let subtotal = roundCurrency((displayedBaseFee + displayedWeightCharge) * sizeMult);
+    // The backend applies only the destination surcharge.
+    const zoneSurcharges = dest.baseSurcharge;
 
     let discount = 0;
     let expressSur = 0;
     let total = subtotal + zoneSurcharges;
 
     if (calcTier === 'MERCHANT') {
-      discount = (baseFee + weightCharge) * 0.15;
-      total -= discount;
+      displayedBaseFee = roundCurrency(baseFee * 0.85);
+      displayedWeightCharge = roundCurrency(standardWeightCharge * 0.85);
+      subtotal = roundCurrency((displayedBaseFee + displayedWeightCharge) * sizeMult);
+      discount = roundCurrency((baseFee + standardWeightCharge) - (displayedBaseFee + displayedWeightCharge));
+      total = subtotal + zoneSurcharges;
     } else if (calcTier === 'EXPRESS') {
-      expressSur = subtotal * 0.50;
+      expressSur = roundCurrency(subtotal * 0.50);
       total += expressSur;
     }
 
     setQuoteResult({
       appliedTier: calcTier,
-      baseFee,
-      weightCharge,
+      baseFee: displayedBaseFee,
+      weightCharge: displayedWeightCharge,
       sizeMultiplier: sizeMult,
       zoneSurcharge: zoneSurcharges,
-      discountAmount: discount,
+      discountAmount: roundCurrency(discount),
       expressSurcharge: expressSur,
-      totalFee: Math.max(0, total)
+      totalFee: Math.max(0, roundCurrency(total))
     });
   };
 
-  const handleToggleZone = (id: number) => {
-    setZones(prev => prev.map(z => z.id === id ? { ...z, isActive: !z.isActive } : z));
+  const handleToggleZone = async (id: number) => {
+    const zone = zones.find((candidate) => candidate.id === id);
+    if (!zone) return;
+
+    setIsSaving(true);
+    setPageError('');
+    setPageNotice('');
+    try {
+      const response = await fetch(`/api/v1/zones/${id}`, {
+        method: 'PUT',
+        headers: adminHeaders(),
+        body: JSON.stringify({ isActive: !zone.isActive }),
+      });
+      if (!response.ok) throw new Error(await readApiError(response));
+      await loadPricingData();
+      setPageNotice(`Zone ${zone.zoneCode} is now ${!zone.isActive ? 'active' : 'inactive'}.`);
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : 'Unable to update the delivery zone.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleCreateZone = (e: React.FormEvent) => {
+  const handleCreateZone = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newZoneCode || !newZoneName) return;
-    const newZone: DeliveryZone = {
-      id: zones.length + 1,
-      zoneCode: newZoneCode.toUpperCase(),
-      zoneName: newZoneName,
-      district: newDistrict || 'General',
-      baseSurcharge: parseFloat(newBaseSurcharge) || 0,
-      isActive: true,
-    };
-    setZones(prev => [...prev, newZone]);
-    setNewZoneCode('');
-    setNewZoneName('');
-    setNewDistrict('');
-    setShowZoneModal(false);
+    if (!newZoneCode.trim() || !newZoneName.trim() || !newDistrict.trim()) return;
+
+    setIsSaving(true);
+    setPageError('');
+    setPageNotice('');
+    try {
+      const response = await fetch('/api/v1/zones', {
+        method: 'POST',
+        headers: adminHeaders(),
+        body: JSON.stringify({
+          zoneCode: newZoneCode.trim().toUpperCase(),
+          zoneName: newZoneName.trim(),
+          district: newDistrict.trim(),
+          baseSurcharge: Number(newBaseSurcharge),
+        }),
+      });
+      if (!response.ok) throw new Error(await readApiError(response));
+      await loadPricingData();
+      setNewZoneCode('');
+      setNewZoneName('');
+      setNewDistrict('');
+      setShowZoneModal(false);
+      setPageNotice('Delivery zone created successfully.');
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : 'Unable to create the delivery zone.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleCreateRule = (e: React.FormEvent) => {
+  const handleCreateRule = async (e: React.FormEvent) => {
     e.preventDefault();
-    const orig = zones.find(z => z.id === ruleOriginId);
-    const dest = zones.find(z => z.id === ruleDestId);
-    if (!orig || !dest) return;
+    if (!zones.some((zone) => zone.id === ruleOriginId) || !zones.some((zone) => zone.id === ruleDestId)) return;
 
-    const newRule: PricingRule = {
-      id: rules.length + 1,
-      originZone: orig,
-      destinationZone: dest,
-      baseFee: parseFloat(ruleBaseFee) || 300,
-      ratePerKg: parseFloat(ruleRatePerKg) || 100,
-      parcelSize: ruleSize,
-      sizeMultiplier: parseFloat(ruleMultiplier) || 1.0,
-    };
-    setRules(prev => [...prev, newRule]);
-    setShowRuleModal(false);
+    setIsSaving(true);
+    setPageError('');
+    setPageNotice('');
+    try {
+      const response = await fetch('/api/v1/pricing/rules', {
+        method: 'POST',
+        headers: adminHeaders(),
+        body: JSON.stringify({
+          originZoneId: ruleOriginId,
+          destinationZoneId: ruleDestId,
+          baseFee: Number(ruleBaseFee),
+          ratePerKg: Number(ruleRatePerKg),
+          parcelSize: ruleSize,
+          sizeMultiplier: Number(ruleMultiplier),
+        }),
+      });
+      if (!response.ok) throw new Error(await readApiError(response));
+      await loadPricingData();
+      setShowRuleModal(false);
+      setPageNotice('Pricing rule created successfully.');
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : 'Unable to create the pricing rule.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
     <AppShell>
       <div className="space-y-6">
+
+        {(pageError || pageNotice) && (
+          <div className={`rounded-xl border px-4 py-3 text-sm ${pageError
+            ? 'border-red-200 bg-red-50 text-red-700'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+            <div className="flex items-center gap-2">
+              {pageError ? <AlertCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+              <span>{pageError || pageNotice}</span>
+            </div>
+          </div>
+        )}
 
         {/* Page Top Header */}
         <div className="pb-4 border-b border-slate-200">
@@ -655,6 +734,8 @@ export default function AdminPricingPage() {
                       <td className="px-5 py-3 text-right">
                         <button
                           onClick={() => handleToggleZone(z.id)}
+                          disabled={isSaving}
+                          aria-label={`${z.isActive ? 'Deactivate' : 'Activate'} ${z.zoneCode}`}
                           className="px-3 py-1 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
                         >
                           {z.isActive ? 'Deactivate' : 'Activate'}
@@ -773,6 +854,7 @@ export default function AdminPricingPage() {
                     value={newDistrict}
                     onChange={(e) => setNewDistrict(e.target.value)}
                     placeholder="e.g. Jaffna"
+                    required
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -800,9 +882,10 @@ export default function AdminPricingPage() {
                   </button>
                   <button
                     type="submit"
+                    disabled={isSaving}
                     className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 shadow-xs transition-colors cursor-pointer"
                   >
-                    Save Zone
+                    {isSaving ? 'Saving...' : 'Save Zone'}
                   </button>
                 </div>
               </form>
@@ -919,9 +1002,10 @@ export default function AdminPricingPage() {
                   </button>
                   <button
                     type="submit"
+                    disabled={isSaving}
                     className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 shadow-xs transition-colors cursor-pointer"
                   >
-                    Save Rule
+                    {isSaving ? 'Saving...' : 'Save Rule'}
                   </button>
                 </div>
               </form>
