@@ -152,5 +152,22 @@ class ParcelHistoryServiceTest {
         verify(parcelRepository, times(1)).findByMerchantId(merchantId, pageable);
         verify(parcelRepository, times(1)).countByMerchantId(merchantId);
     }
+
+    @Test
+    @DisplayName("getMerchantOrders with status filter and null zones maps cleanly")
+    void getMerchantOrders_withStatusAndNullZones_mapsCleanly() {
+        mockParcel.setOriginZone(null);
+        mockParcel.setDestinationZone(null);
+
+        Page<Parcel> page = new PageImpl<>(List.of(mockParcel), pageable, 1);
+        when(parcelRepository.findByMerchantIdAndCurrentStatus(merchantId, ParcelStatus.IN_TRANSIT, pageable)).thenReturn(page);
+        when(parcelRepository.countByMerchantId(merchantId)).thenReturn(10L);
+
+        MerchantOrderHistoryResponse response = historyService.getMerchantOrders(merchantId, ParcelStatus.IN_TRANSIT, pageable);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getOrders().getContent().get(0).getOriginZoneName()).isNull();
+        assertThat(response.getOrders().getContent().get(0).getDestinationZoneName()).isNull();
+    }
 }
 

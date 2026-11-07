@@ -142,5 +142,41 @@ class ParcelTrackingServiceTest {
         verify(parcelRepository, times(1)).findByTrackingNumber(trackingNumber);
         verify(parcelStatusHistoryRepository, times(1)).findByParcel_IdOrderByCreatedAtAsc(parcelId);
     }
+
+    @Test
+    @DisplayName("trackParcel handles short names, single-letter initials, and null zones")
+    void trackParcel_shortNamesAndNullZones_handlesEdgeCases() {
+        mockParcel.setRecipientName("A B CD EFG");
+        mockParcel.setOriginZone(null);
+        mockParcel.setDestinationZone(null);
+
+        when(parcelRepository.findByTrackingNumber(trackingNumber)).thenReturn(Optional.of(mockParcel));
+        when(parcelStatusHistoryRepository.findByParcel_IdOrderByCreatedAtAsc(parcelId)).thenReturn(List.of());
+
+        ParcelTrackingResponse response = trackingService.trackParcel(trackingNumber);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getMaskedRecipientName()).isEqualTo("* * C* E***G");
+        assertThat(response.getOriginZoneCode()).isNull();
+        assertThat(response.getDestinationZoneCode()).isNull();
+    }
+
+    @Test
+    @DisplayName("trackParcel handles null or empty recipient names gracefully")
+    void trackParcel_nullOrEmptyName_returnsAsIs() {
+        mockParcel.setRecipientName(null);
+
+        when(parcelRepository.findByTrackingNumber(trackingNumber)).thenReturn(Optional.of(mockParcel));
+        when(parcelStatusHistoryRepository.findByParcel_IdOrderByCreatedAtAsc(parcelId)).thenReturn(List.of());
+
+        ParcelTrackingResponse response = trackingService.trackParcel(trackingNumber);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getMaskedRecipientName()).isNull();
+
+        mockParcel.setRecipientName("   ");
+        response = trackingService.trackParcel(trackingNumber);
+        assertThat(response.getMaskedRecipientName()).isEmpty();
+    }
 }
 

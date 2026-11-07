@@ -118,5 +118,44 @@ class ParcelReceiptServiceTest {
         assertThat(result).isEqualTo(mockPdfBytes);
         verify(pdfReceiptGenerator, times(1)).generateReceipt(parcel);
     }
+
+    @Test
+    @DisplayName("generateReceiptPdf throws IllegalArgumentException when requesterUserId is null")
+    void generateReceiptPdf_nullRequesterId_throwsException() {
+        assertThatThrownBy(() -> receiptService.generateReceiptPdf(parcelId, null, Collections.emptyList()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Requester user ID cannot be null.");
+    }
+
+    @Test
+    @DisplayName("generateReceiptPdf succeeds when requester is the merchant")
+    void generateReceiptPdf_authorizedMerchant_success() {
+        UUID merchantId = UUID.randomUUID();
+        parcel.setMerchantId(merchantId);
+
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(parcel));
+        when(pdfReceiptGenerator.generateReceipt(parcel)).thenReturn(mockPdfBytes);
+
+        byte[] result = receiptService.generateReceiptPdf(
+                parcelId,
+                merchantId,
+                List.of(new SimpleGrantedAuthority("ROLE_MERCHANT"))
+        );
+
+        assertThat(result).isEqualTo(mockPdfBytes);
+        verify(pdfReceiptGenerator, times(1)).generateReceipt(parcel);
+    }
+
+    @Test
+    @DisplayName("generateReceiptPdf handles null authorities collection cleanly")
+    void generateReceiptPdf_nullAuthorities_checksOwnership() {
+        when(parcelRepository.findById(parcelId)).thenReturn(Optional.of(parcel));
+        when(pdfReceiptGenerator.generateReceipt(parcel)).thenReturn(mockPdfBytes);
+
+        byte[] result = receiptService.generateReceiptPdf(parcelId, senderUserId, null);
+
+        assertThat(result).isEqualTo(mockPdfBytes);
+        verify(pdfReceiptGenerator, times(1)).generateReceipt(parcel);
+    }
 }
 

@@ -178,7 +178,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <argLine>-XX:+EnableDynamicAgentLoading -Xshare:off</argLine>
+                    <argLine>@{argLine} -XX:+EnableDynamicAgentLoading -Xshare:off</argLine>
                 </configuration>
             </plugin>
             <!-- JaCoCo Code Coverage (>= 80% line + branch threshold) -->
