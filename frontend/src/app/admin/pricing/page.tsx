@@ -187,6 +187,13 @@ export default function AdminPricingPage() {
     const dest = zones.find(z => z.id === calcDest) || zones[1] || zones[0];
     if (!origin || !dest) return;
 
+    if (origin.id === dest.id) {
+      setQuoteResult(null);
+      setQuoteSource('OFFLINE');
+      setPageError('Origin and destination zones must be different.');
+      return;
+    }
+
     try {
       const response = await fetch('/api/v1/parcels/quote', {
         method: 'POST',
@@ -200,9 +207,23 @@ export default function AdminPricingPage() {
         }),
         signal,
       });
-      if (!response.ok) throw new Error(await readApiError(response));
+
+      if (!response.ok) {
+        const message = await readApiError(response);
+        if (response.status < 500) {
+          setQuoteResult(null);
+          setQuoteSource('OFFLINE');
+          setPageError(message);
+          return;
+        }
+
+        runOfflineQuoteCalculation(origin, dest);
+        return;
+      }
+
       setQuoteResult(await response.json());
       setQuoteSource('BACKEND');
+      setPageError('');
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
       runOfflineQuoteCalculation(origin, dest);
