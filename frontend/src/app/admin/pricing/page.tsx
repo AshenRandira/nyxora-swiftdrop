@@ -251,7 +251,7 @@ export default function AdminPricingPage() {
       if (error instanceof DOMException && error.name === 'AbortError') return;
       runOfflineQuoteCalculation(origin, dest);
     }
-  }, [adminHeaders, calcOrigin, calcDest, calcSize, calcTier, runOfflineQuoteCalculation, zones]);
+  }, [adminHeaders, calcDest, calcOrigin, calcSize, calcTier, calcWeight, runOfflineQuoteCalculation, zones]);
 
   // Recalculate through the real pricing engine whenever parameters change.
   useEffect(() => {
