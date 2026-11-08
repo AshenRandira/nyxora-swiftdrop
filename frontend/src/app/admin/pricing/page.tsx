@@ -11,8 +11,6 @@ import {
   AlertCircle,
   ArrowRight,
   Sliders,
-  DollarSign,
-  Sparkles,
   Calculator,
   Scale,
   Box,
