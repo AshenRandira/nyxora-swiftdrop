@@ -31,7 +31,9 @@ export async function GET(request: Request) {
     // Backend offline -> serve seed rules cleanly
   }
 
-  return NextResponse.json(SEED_RULES);
+  return NextResponse.json(SEED_RULES, {
+    headers: { 'X-SwiftDrop-Data-Source': 'seed' },
+  });
 }
 
 export async function POST(request: Request) {

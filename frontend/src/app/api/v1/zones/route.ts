@@ -25,7 +25,9 @@ export async function GET(request: Request) {
     // Backend offline -> serve seed zones cleanly
   }
 
-  return NextResponse.json(SEED_ZONES);
+  return NextResponse.json(SEED_ZONES, {
+    headers: { 'X-SwiftDrop-Data-Source': 'seed' },
+  });
 }
 
 export async function POST(request: Request) {
