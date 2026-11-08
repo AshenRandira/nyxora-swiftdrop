@@ -145,6 +145,9 @@ export default function AdminApprovalsPage() {
   const [filterRole, setFilterRole] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<string>('PENDING_APPROVAL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(SEED_PARTNERS.length);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -168,6 +171,8 @@ export default function AdminApprovalsPage() {
         role: filterRole === 'ALL' ? '' : filterRole,
         status: filterStatus === 'ALL' ? '' : filterStatus,
         search: searchQuery,
+        page: String(currentPage),
+        size: '10',
       });
       const res = await fetch(`/api/v1/auth/admin/users?${params.toString()}`, {
         headers: {
@@ -182,14 +187,21 @@ export default function AdminApprovalsPage() {
       }
 
       const data = await res.json();
-      const list = data.content || data;
-      setPartners(Array.isArray(list) ? list : []);
+      const list = Array.isArray(data) ? data : data.content;
+      const nextPartners = Array.isArray(list) ? list : [];
+      setPartners(nextPartners);
+      setTotalPages(Array.isArray(data) ? 1 : Math.max(1, data.totalPages || 1));
+      setTotalElements(Array.isArray(data) ? nextPartners.length : data.totalElements ?? nextPartners.length);
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
       setLoadError(error instanceof Error ? error.message : 'Unable to load the partner queue.');
     } finally {
       if (!signal?.aborted) setIsLoading(false);
     }
+  }, [currentPage, filterRole, filterStatus, searchQuery]);
+
+  useEffect(() => {
+    setCurrentPage(0);
   }, [filterRole, filterStatus, searchQuery]);
 
   useEffect(() => {
