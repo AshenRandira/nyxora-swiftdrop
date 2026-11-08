@@ -94,11 +94,15 @@ export async function GET(request: Request) {
         'Authorization': request.headers.get('authorization') || '',
         'Content-Type': 'application/json',
       },
-      signal: AbortSignal.timeout(600),
+      signal: AbortSignal.timeout(5000),
     });
-    if (backendRes.ok) {
-      return NextResponse.json(await backendRes.json());
-    }
+
+    return new NextResponse(await backendRes.text(), {
+      status: backendRes.status,
+      headers: {
+        'Content-Type': backendRes.headers.get('content-type') || 'application/json',
+      },
+    });
   } catch {
     // Backend offline -> serve seed partners cleanly
   }
