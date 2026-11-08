@@ -160,7 +160,7 @@ export default function AdminPricingPage() {
     }
   };
 
-  const runOfflineQuoteCalculation = (origin: DeliveryZone, dest: DeliveryZone) => {
+  const runOfflineQuoteCalculation = useCallback((origin: DeliveryZone, dest: DeliveryZone) => {
     const rule = rules.find(r =>
       r.originZone.id === origin.id &&
       r.destinationZone.id === dest.id &&
@@ -202,7 +202,7 @@ export default function AdminPricingPage() {
       totalFee: Math.max(0, roundCurrency(total))
     });
     setQuoteSource('OFFLINE');
-  };
+  }, [calcSize, calcTier, calcWeight, rules]);
 
   const runQuoteCalculation = useCallback(async (signal?: AbortSignal) => {
     const origin = zones.find(z => z.id === calcOrigin) || zones[0];
@@ -250,7 +250,7 @@ export default function AdminPricingPage() {
       if (error instanceof DOMException && error.name === 'AbortError') return;
       runOfflineQuoteCalculation(origin, dest);
     }
-  }, [adminHeaders, calcOrigin, calcDest, calcWeight, calcSize, calcTier, zones, rules]);
+  }, [adminHeaders, calcOrigin, calcDest, calcSize, calcTier, runOfflineQuoteCalculation, zones]);
 
   // Recalculate through the real pricing engine whenever parameters change.
   useEffect(() => {
