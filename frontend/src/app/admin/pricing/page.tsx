@@ -143,6 +143,7 @@ export default function AdminPricingPage() {
 
   // Load live data when available; seed data keeps the simulator usable offline.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- this effect synchronizes remote pricing data into the page state.
     loadPricingData().catch(() => undefined);
   }, [loadPricingData]);
 
@@ -255,6 +256,7 @@ export default function AdminPricingPage() {
   // Recalculate through the real pricing engine whenever parameters change.
   useEffect(() => {
     const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- this effect runs the remote quote calculation for current inputs.
     void runQuoteCalculation(controller.signal);
     return () => controller.abort();
   }, [runQuoteCalculation]);
