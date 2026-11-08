@@ -96,13 +96,7 @@ public class DemoWebhookController {
             Environment environment,
             String fallbackDemoSecret,
             String fallbackDemoMerchantId) {
-        this.eventStore = eventStore;
-        this.authInternalClient = authInternalClient;
-        this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
-        this.environment = environment;
-        this.mappingResolver = mappingResolver != null ? mappingResolver : (userId -> Optional.empty());
-        this.fallbackDemoSecret = fallbackDemoSecret != null ? fallbackDemoSecret.trim() : "";
-        this.fallbackDemoMerchantId = fallbackDemoMerchantId != null ? fallbackDemoMerchantId.trim() : "";
+        this(eventStore, authInternalClient, objectMapper, environment, mappingResolver, fallbackDemoSecret, fallbackDemoMerchantId);
     }
 
     /**
@@ -112,7 +106,7 @@ public class DemoWebhookController {
             DemoWebhookEventStore eventStore,
             AuthInternalClient authInternalClient,
             ObjectMapper objectMapper) {
-        this(eventStore, authInternalClient, objectMapper, null, null, null, null);
+        this(eventStore, authInternalClient, objectMapper, (Environment) null, (UserMerchantMappingResolver) null, null, null);
     }
 
     /**

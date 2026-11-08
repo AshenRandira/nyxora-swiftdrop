@@ -3,6 +3,7 @@ package com.nyxora.swiftdrop.notification.webhook.client;
 import com.nyxora.swiftdrop.notification.webhook.client.dto.MerchantWebhookConfigResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatusCode;
@@ -35,10 +36,12 @@ public class AuthInternalClient {
 
     private final RestClient restClient;
 
+    @Autowired
     public AuthInternalClient(
-            RestClient.Builder restClientBuilder,
+            @Autowired(required = false) RestClient.Builder restClientBuilder,
             @Value("${app.services.auth-service-url:http://localhost:8081}") String authServiceBaseUrl) {
-        this.restClient = restClientBuilder
+        RestClient.Builder builder = restClientBuilder != null ? restClientBuilder : RestClient.builder();
+        this.restClient = builder
                 .baseUrl(authServiceBaseUrl)
                 .build();
     }
