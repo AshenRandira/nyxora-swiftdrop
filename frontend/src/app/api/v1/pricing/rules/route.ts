@@ -25,7 +25,10 @@ export async function GET(request: Request) {
 
     return new NextResponse(await backendRes.text(), {
       status: backendRes.status,
-      headers: { 'Content-Type': backendRes.headers.get('content-type') || 'application/json' },
+      headers: {
+        'Content-Type': backendRes.headers.get('content-type') || 'application/json',
+        'X-SwiftDrop-Data-Source': 'backend',
+      },
     });
   } catch {
     // Backend offline -> serve seed rules cleanly
