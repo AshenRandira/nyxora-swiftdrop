@@ -149,6 +149,10 @@ export default function AdminApprovalsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [busyPartnerId, setBusyPartnerId] = useState<string | null>(null);
+  const [detailTarget, setDetailTarget] = useState<Partner | null>(null);
+  const [partnerDetail, setPartnerDetail] = useState<PartnerDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
 
   // Modal State for Reject / Suspend reason
   const [actionTarget, setActionTarget] = useState<Partner | null>(null);
@@ -199,6 +203,38 @@ export default function AdminApprovalsPage() {
       controller.abort();
     };
   }, [fetchPartners]);
+
+  const handleViewDetails = async (partner: Partner) => {
+    setDetailTarget(partner);
+    setPartnerDetail(null);
+    setDetailError(null);
+    setDetailLoading(true);
+
+    try {
+      const response = await fetch(`/api/v1/auth/admin/users/${encodeURIComponent(partner.id)}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('swiftdrop_access_token') || ''}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(await getApiErrorMessage(response, 'Unable to load partner details.'));
+      }
+
+      setPartnerDetail(await response.json());
+    } catch (error) {
+      setDetailError(error instanceof Error ? error.message : 'Unable to load partner details.');
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const closeDetails = () => {
+    setDetailTarget(null);
+    setPartnerDetail(null);
+    setDetailError(null);
+  };
 
   const handleApprove = async (partner: Partner) => {
     setBusyPartnerId(partner.id);
