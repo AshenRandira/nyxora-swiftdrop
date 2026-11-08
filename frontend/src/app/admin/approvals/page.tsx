@@ -202,9 +202,20 @@ export default function AdminApprovalsPage() {
     }
   }, [currentPage, filterRole, filterStatus, searchQuery]);
 
-  useEffect(() => {
+  const handleStatusFilterChange = (status: string) => {
     setCurrentPage(0);
-  }, [filterRole, filterStatus, searchQuery]);
+    setFilterStatus(status);
+  };
+
+  const handleRoleFilterChange = (role: string) => {
+    setCurrentPage(0);
+    setFilterRole(role);
+  };
+
+  const handleSearchChange = (query: string) => {
+    setCurrentPage(0);
+    setSearchQuery(query);
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -406,7 +417,7 @@ export default function AdminApprovalsPage() {
         {/* Top KPI Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div
-            onClick={() => setFilterStatus('PENDING_APPROVAL')}
+            onClick={() => handleStatusFilterChange('PENDING_APPROVAL')}
             className={`p-4 rounded-xl border transition-all cursor-pointer ${
               filterStatus === 'PENDING_APPROVAL'
                 ? 'bg-slate-50/80 border-slate-900 ring-1 ring-slate-900 shadow-xs'
@@ -424,7 +435,7 @@ export default function AdminApprovalsPage() {
           </div>
 
           <div
-            onClick={() => setFilterStatus('ACTIVE')}
+            onClick={() => handleStatusFilterChange('ACTIVE')}
             className={`p-4 rounded-xl border transition-all cursor-pointer ${
               filterStatus === 'ACTIVE'
                 ? 'bg-slate-50/80 border-slate-900 ring-1 ring-slate-900 shadow-xs'
@@ -442,7 +453,7 @@ export default function AdminApprovalsPage() {
           </div>
 
           <div
-            onClick={() => setFilterStatus('SUSPENDED')}
+            onClick={() => handleStatusFilterChange('SUSPENDED')}
             className={`p-4 rounded-xl border transition-all cursor-pointer ${
               filterStatus === 'SUSPENDED'
                 ? 'bg-slate-50/80 border-slate-900 ring-1 ring-slate-900 shadow-xs'
@@ -460,7 +471,7 @@ export default function AdminApprovalsPage() {
           </div>
 
           <div
-            onClick={() => setFilterStatus('REJECTED')}
+            onClick={() => handleStatusFilterChange('REJECTED')}
             className={`p-4 rounded-xl border transition-all cursor-pointer ${
               filterStatus === 'REJECTED'
                 ? 'bg-slate-50/80 border-slate-900 ring-1 ring-slate-900 shadow-xs'
@@ -494,7 +505,7 @@ export default function AdminApprovalsPage() {
               return (
                 <button
                   key={tab.key}
-                  onClick={() => setFilterStatus(tab.key)}
+                  onClick={() => handleStatusFilterChange(tab.key)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
                     isActive
                       ? 'bg-slate-900 text-white shadow-xs'
@@ -517,7 +528,7 @@ export default function AdminApprovalsPage() {
             <div className="relative">
               <select
                 value={filterRole}
-                onChange={(e) => setFilterRole(e.target.value)}
+                onChange={(e) => handleRoleFilterChange(e.target.value)}
                 className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-900 cursor-pointer"
               >
                 <option value="ALL">All Roles</option>
@@ -531,7 +542,7 @@ export default function AdminApprovalsPage() {
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 placeholder="Search partner or vehicle..."
                 className="bg-white border border-slate-200 rounded-lg pl-8.5 pr-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900 w-48 sm:w-56"
               />
