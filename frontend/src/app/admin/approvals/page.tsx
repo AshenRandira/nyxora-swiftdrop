@@ -3,20 +3,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AppShell from '@/components/layout/AppShell';
 import {
-  Users,
-  Shield,
   Truck,
   Store,
   CheckCircle2,
   XCircle,
   AlertTriangle,
   Search,
-  Filter,
   Check,
   X,
-  FileText,
   Clock,
-  Sparkles,
 } from 'lucide-react';
 
 interface Partner {
