@@ -110,6 +110,7 @@ export default function AdminPricingPage() {
   const [calcTier, setCalcTier] = useState<'STANDARD' | 'MERCHANT' | 'EXPRESS'>('EXPRESS');
   const [quoteResult, setQuoteResult] = useState<QuoteResponse | null>(null);
   const [quoteSource, setQuoteSource] = useState<'BACKEND' | 'OFFLINE'>('OFFLINE');
+  const [pricingDataSource, setPricingDataSource] = useState<'BACKEND' | 'OFFLINE'>('OFFLINE');
   const [isSaving, setIsSaving] = useState(false);
   const [pageError, setPageError] = useState('');
   const [pageNotice, setPageNotice] = useState('');
@@ -131,6 +132,12 @@ export default function AdminPricingPage() {
     const [zData, rData] = await Promise.all([zonesRes.json(), rulesRes.json()]);
     setZones(Array.isArray(zData) ? zData : []);
     setRules(Array.isArray(rData) ? rData : []);
+    setPricingDataSource(
+      zonesRes.headers.get('X-SwiftDrop-Data-Source') === 'seed'
+        || rulesRes.headers.get('X-SwiftDrop-Data-Source') === 'seed'
+        ? 'OFFLINE'
+        : 'BACKEND'
+    );
   }, [adminHeaders]);
 
   // Load live data when available; seed data keeps the simulator usable offline.
@@ -435,6 +442,12 @@ export default function AdminPricingPage() {
               <p className="text-sm text-slate-500 mt-1">
                 Manage island-wide logistics zones, inter-zone tariffs, and live quotation calculation.
               </p>
+              {pricingDataSource === 'OFFLINE' && (
+                <div className="inline-flex items-center gap-1.5 mt-2 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-800">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  Showing offline seed data — changes require the parcel service.
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-2.5">
