@@ -107,6 +107,8 @@ export async function GET(request: Request) {
     // Backend offline -> serve seed partners cleanly
   }
 
-  return NextResponse.json(SEED_PARTNERS);
+  return NextResponse.json(SEED_PARTNERS, {
+    headers: { 'X-SwiftDrop-Data-Source': 'seed' },
+  });
 }
 
