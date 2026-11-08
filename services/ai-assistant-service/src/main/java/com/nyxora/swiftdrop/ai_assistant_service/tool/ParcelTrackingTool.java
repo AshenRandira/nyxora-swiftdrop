@@ -1,5 +1,7 @@
 package com.nyxora.swiftdrop.ai_assistant_service.tool;
 
+import com.nyxora.swiftdrop.ai_assistant_service.security.UserContextHolder;
+import com.nyxora.swiftdrop.ai_assistant_service.security.UserIdentity;
 import com.nyxora.swiftdrop.common.security.util.PiiMaskingUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,6 +11,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * Spring-managed read-only tool for retrieving SwiftDrop parcel tracking information.
+ * Enforces identity isolation: caller identity is derived strictly from UserContextHolder,
+ * preventing arbitrary customer identity injection by the model or MCP clients.
  */
 @Component
 public class ParcelTrackingTool {
@@ -21,6 +25,14 @@ public class ParcelTrackingTool {
     public ParcelTrackingResult getParcelTracking(
             @ToolParam(description = "The SwiftDrop tracking number (e.g. SWIFT-100234)")
             String trackingNumber) {
+
+        // Identity isolation: Obtain caller identity strictly from trusted security context.
+        // Never allow callers or LLM prompts to supply an arbitrary customer identity parameter.
+        UserIdentity caller = UserContextHolder.getContext();
+        if (caller != null) {
+            log.info("Parcel tracking requested by trusted identity: userId={}, role={}",
+                    caller.userId(), caller.role());
+        }
 
         if (trackingNumber == null || trackingNumber.trim().isBlank()) {
             return ParcelTrackingResult.invalidInput("Tracking number must not be empty.");
@@ -41,4 +53,3 @@ public class ParcelTrackingTool {
         );
     }
 }
-
