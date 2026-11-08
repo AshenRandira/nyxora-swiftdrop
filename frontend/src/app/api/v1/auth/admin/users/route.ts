@@ -105,11 +105,10 @@ export async function GET(request: Request) {
       },
     });
   } catch {
-    // Backend offline -> serve seed partners cleanly
+    return NextResponse.json(
+      { title: 'Auth service unavailable', detail: 'The partner queue is unavailable because the authentication service is offline.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } },
+    );
   }
-
-  return NextResponse.json(SEED_PARTNERS, {
-    headers: { 'X-SwiftDrop-Data-Source': 'seed' },
-  });
 }
 
