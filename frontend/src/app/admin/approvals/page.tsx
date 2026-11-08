@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import AppShell from '@/components/layout/AppShell';
 import {
   Users,
@@ -104,52 +104,102 @@ const SEED_PARTNERS: Partner[] = [
   },
 ];
 
+async function getApiErrorMessage(response: Response, fallback: string) {
+  try {
+    const payload = await response.json();
+    return payload.detail || payload.message || payload.title || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export default function AdminApprovalsPage() {
   const [partners, setPartners] = useState<Partner[]>(SEED_PARTNERS);
   const [filterRole, setFilterRole] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<string>('PENDING_APPROVAL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [busyPartnerId, setBusyPartnerId] = useState<string | null>(null);
 
   // Modal State for Reject / Suspend reason
   const [actionTarget, setActionTarget] = useState<Partner | null>(null);
   const [actionType, setActionType] = useState<'REJECT' | 'SUSPEND' | null>(null);
   const [reasonInput, setReasonInput] = useState<string>('');
 
-  // Fetch real partners if backend available
-  useEffect(() => {
-    const fetchPartners = async () => {
-      try {
-        const res = await fetch(`/api/v1/auth/admin/users?role=${filterRole === 'ALL' ? '' : filterRole}&status=${filterStatus === 'ALL' ? '' : filterStatus}&search=${searchQuery}`, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('swiftdrop_access_token') || ''}`,
-          },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const list = data.content || data;
-          if (list && list.length > 0) setPartners(list);
-        }
-      } catch {
-        // Fallback to seed partners seamlessly
+  const fetchPartners = useCallback(async (signal?: AbortSignal) => {
+    setIsLoading(true);
+    setLoadError(null);
+
+    try {
+      const params = new URLSearchParams({
+        role: filterRole === 'ALL' ? '' : filterRole,
+        status: filterStatus === 'ALL' ? '' : filterStatus,
+        search: searchQuery,
+      });
+      const res = await fetch(`/api/v1/auth/admin/users?${params.toString()}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('swiftdrop_access_token') || ''}`,
+        },
+        signal,
+      });
+
+      if (!res.ok) {
+        throw new Error(await getApiErrorMessage(res, 'Unable to load the partner queue.'));
       }
+
+      const data = await res.json();
+      const list = data.content || data;
+      setPartners(Array.isArray(list) ? list : []);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      setLoadError(error instanceof Error ? error.message : 'Unable to load the partner queue.');
+    } finally {
+      if (!signal?.aborted) setIsLoading(false);
+    }
+  }, [filterRole, filterStatus, searchQuery]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      void fetchPartners(controller.signal);
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
     };
-    fetchPartners();
-  }, [filterRole, filterStatus]);
+  }, [fetchPartners]);
 
   const handleApprove = async (partner: Partner) => {
+    setBusyPartnerId(partner.id);
+    setNotice(null);
     try {
-      await fetch(`/api/v1/auth/admin/users/${partner.id}/approve`, {
+      const res = await fetch(`/api/v1/auth/admin/users/${partner.id}/approve`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('swiftdrop_access_token') || ''}`,
         },
       });
-    } catch {
-      // Local optimistic update
+
+      if (!res.ok) {
+        throw new Error(await getApiErrorMessage(res, 'The approval could not be saved.'));
+      }
+
+      setPartners(prev => prev.map(p => p.id === partner.id ? { ...p, status: 'ACTIVE', statusReason: undefined } : p));
+      setNotice({ type: 'success', message: `${partner.fullName} is now active.` });
+      await fetchPartners();
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'The approval could not be saved.',
+      });
+    } finally {
+      setBusyPartnerId(null);
     }
-    setPartners(prev => prev.map(p => p.id === partner.id ? { ...p, status: 'ACTIVE', statusReason: undefined } : p));
   };
 
   const handlePromptAction = (partner: Partner, type: 'REJECT' | 'SUSPEND') => {
@@ -161,28 +211,48 @@ export default function AdminApprovalsPage() {
   const handleConfirmAction = async () => {
     if (!actionTarget || !actionType || !reasonInput.trim()) return;
 
-    try {
-      const endpoint = actionType === 'REJECT'
-        ? `/api/v1/auth/admin/users/${actionTarget.id}/reject`
-        : `/api/v1/auth/admin/users/${actionTarget.id}/suspend`;
+    const target = actionTarget;
+    const action = actionType;
+    const reason = reasonInput.trim();
+    setBusyPartnerId(target.id);
+    setNotice(null);
 
-      await fetch(endpoint, {
+    try {
+      const endpoint = action === 'REJECT'
+        ? `/api/v1/auth/admin/users/${target.id}/reject`
+        : `/api/v1/auth/admin/users/${target.id}/suspend`;
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('swiftdrop_access_token') || ''}`,
         },
-        body: JSON.stringify({ reason: reasonInput }),
+        body: JSON.stringify({ reason }),
       });
-    } catch {
-      // Local optimistic update
-    }
 
-    const nextStatus = actionType === 'REJECT' ? 'REJECTED' : 'SUSPENDED';
-    setPartners(prev => prev.map(p => p.id === actionTarget.id ? { ...p, status: nextStatus, statusReason: reasonInput } : p));
-    setActionTarget(null);
-    setActionType(null);
-    setReasonInput('');
+      if (!res.ok) {
+        throw new Error(await getApiErrorMessage(res, 'The account decision could not be saved.'));
+      }
+
+      const nextStatus = action === 'REJECT' ? 'REJECTED' : 'SUSPENDED';
+      setPartners(prev => prev.map(p => p.id === target.id ? { ...p, status: nextStatus, statusReason: reason } : p));
+      setNotice({
+        type: 'success',
+        message: `${target.fullName} was ${action === 'REJECT' ? 'rejected' : 'suspended'}.`,
+      });
+      setActionTarget(null);
+      setActionType(null);
+      setReasonInput('');
+      await fetchPartners();
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'The account decision could not be saved.',
+      });
+    } finally {
+      setBusyPartnerId(null);
+    }
   };
 
   // Filtered partners
@@ -219,6 +289,25 @@ export default function AdminApprovalsPage() {
             </div>
           </div>
         </div>
+
+        {loadError && (
+          <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+            <span className="font-semibold">Queue unavailable:</span> {loadError}
+          </div>
+        )}
+
+        {notice && (
+          <div
+            role="status"
+            className={`rounded-xl border px-4 py-3 text-sm ${
+              notice.type === 'success'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : 'border-amber-200 bg-amber-50 text-amber-900'
+            }`}
+          >
+            {notice.message}
+          </div>
+        )}
 
         {/* Top KPI Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -372,7 +461,13 @@ export default function AdminApprovalsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredPartners.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-12 text-center text-slate-400">
+                      Loading partner queue...
+                    </td>
+                  </tr>
+                ) : filteredPartners.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-5 py-12 text-center text-slate-400">
                       No partners found matching the selected filter criteria.
@@ -468,13 +563,15 @@ export default function AdminApprovalsPage() {
                             <div className="flex items-center justify-end gap-2">
                               <button
                                 onClick={() => handleApprove(p)}
+                                disabled={busyPartnerId !== null}
                                 className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 shadow-xs transition-colors cursor-pointer"
                               >
                                 <Check className="w-3.5 h-3.5" />
-                                <span>Approve</span>
+                                <span>{busyPartnerId === p.id ? 'Saving...' : 'Approve'}</span>
                               </button>
                               <button
                                 onClick={() => handlePromptAction(p, 'REJECT')}
+                                disabled={busyPartnerId !== null}
                                 className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition-colors cursor-pointer"
                               >
                                 <X className="w-3.5 h-3.5" />
@@ -486,6 +583,7 @@ export default function AdminApprovalsPage() {
                           {p.status === 'ACTIVE' && (
                             <button
                               onClick={() => handlePromptAction(p, 'SUSPEND')}
+                              disabled={busyPartnerId !== null}
                               className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
                             >
                               Suspend
@@ -495,9 +593,10 @@ export default function AdminApprovalsPage() {
                           {(p.status === 'SUSPENDED' || p.status === 'REJECTED') && (
                             <button
                               onClick={() => handleApprove(p)}
+                              disabled={busyPartnerId !== null}
                               className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
                             >
-                              Re-activate
+                              {busyPartnerId === p.id ? 'Saving...' : 'Re-activate'}
                             </button>
                           )}
                         </td>
@@ -559,13 +658,16 @@ export default function AdminApprovalsPage() {
                 <button
                   type="button"
                   onClick={handleConfirmAction}
+                  disabled={busyPartnerId !== null || !reasonInput.trim()}
                   className={`px-4 py-2 rounded-lg text-xs font-semibold text-white shadow-xs transition-colors cursor-pointer ${
                     actionType === 'REJECT'
                       ? 'bg-rose-600 hover:bg-rose-700'
                       : 'bg-slate-900 hover:bg-slate-800'
                   }`}
                 >
-                  {actionType === 'REJECT' ? 'Confirm Rejection' : 'Confirm Suspension'}
+                  {busyPartnerId !== null
+                    ? 'Saving...'
+                    : actionType === 'REJECT' ? 'Confirm Rejection' : 'Confirm Suspension'}
                 </button>
               </div>
             </div>
