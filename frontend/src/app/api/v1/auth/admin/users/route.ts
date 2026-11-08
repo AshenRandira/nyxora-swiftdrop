@@ -101,6 +101,7 @@ export async function GET(request: Request) {
       status: backendRes.status,
       headers: {
         'Content-Type': backendRes.headers.get('content-type') || 'application/json',
+        'X-SwiftDrop-Data-Source': 'backend',
       },
     });
   } catch {
