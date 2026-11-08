@@ -20,11 +20,13 @@ export async function GET(request: Request) {
         'Authorization': request.headers.get('authorization') || '',
         'X-User-Role': request.headers.get('x-user-role') || 'ROLE_ADMIN',
       },
-      signal: AbortSignal.timeout(600),
+      signal: AbortSignal.timeout(5000),
     });
-    if (backendRes.ok) {
-      return NextResponse.json(await backendRes.json());
-    }
+
+    return new NextResponse(await backendRes.text(), {
+      status: backendRes.status,
+      headers: { 'Content-Type': backendRes.headers.get('content-type') || 'application/json' },
+    });
   } catch {
     // Backend offline -> serve seed rules cleanly
   }
@@ -33,18 +35,26 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const backendRes = await fetch('http://localhost:8080/api/v1/pricing/rules', {
-    method: 'POST',
-    headers: {
-      'Authorization': request.headers.get('authorization') || '',
-      'Content-Type': 'application/json',
-    },
-    body: await request.text(),
-  });
+  try {
+    const backendRes = await fetch('http://localhost:8080/api/v1/pricing/rules', {
+      method: 'POST',
+      headers: {
+        'Authorization': request.headers.get('authorization') || '',
+        'Content-Type': 'application/json',
+      },
+      body: await request.text(),
+      signal: AbortSignal.timeout(5000),
+    });
 
-  return new NextResponse(await backendRes.text(), {
-    status: backendRes.status,
-    headers: { 'Content-Type': backendRes.headers.get('content-type') || 'application/json' },
-  });
+    return new NextResponse(await backendRes.text(), {
+      status: backendRes.status,
+      headers: { 'Content-Type': backendRes.headers.get('content-type') || 'application/json' },
+    });
+  } catch {
+    return NextResponse.json(
+      { title: 'Parcel service unavailable', detail: 'The pricing rule could not be saved because the parcel service is unavailable.' },
+      { status: 503 }
+    );
+  }
 }
 
