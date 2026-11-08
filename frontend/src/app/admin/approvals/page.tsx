@@ -149,6 +149,7 @@ export default function AdminApprovalsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(SEED_PARTNERS.length);
   const [isLoading, setIsLoading] = useState(true);
+  const [queueDataSource, setQueueDataSource] = useState<'BACKEND' | 'OFFLINE'>('OFFLINE');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [busyPartnerId, setBusyPartnerId] = useState<string | null>(null);
@@ -190,6 +191,7 @@ export default function AdminApprovalsPage() {
       const list = Array.isArray(data) ? data : data.content;
       const nextPartners = Array.isArray(list) ? list : [];
       setPartners(nextPartners);
+      setQueueDataSource(res.headers.get('X-SwiftDrop-Data-Source') === 'seed' ? 'OFFLINE' : 'BACKEND');
       setTotalPages(Array.isArray(data) ? 1 : Math.max(1, data.totalPages || 1));
       setTotalElements(Array.isArray(data) ? nextPartners.length : data.totalElements ?? nextPartners.length);
     } catch (error) {
@@ -379,6 +381,12 @@ export default function AdminApprovalsPage() {
         {loadError && (
           <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
             <span className="font-semibold">Queue unavailable:</span> {loadError}
+          </div>
+        )}
+
+        {queueDataSource === 'OFFLINE' && (
+          <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Showing offline seed partner data — live approval actions require the auth service.
           </div>
         )}
 
