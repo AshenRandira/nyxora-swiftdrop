@@ -699,6 +699,9 @@ export default function AdminApprovalsPage() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="partner-detail-title"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) closeDetails();
+            }}
           >
             <div className="h-full w-full max-w-xl overflow-y-auto bg-white p-6 shadow-2xl">
               <div className="flex items-start justify-between border-b border-slate-100 pb-4">
