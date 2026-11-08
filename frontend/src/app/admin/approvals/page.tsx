@@ -724,8 +724,61 @@ export default function AdminApprovalsPage() {
 
               {!detailLoading && !detailError && partnerDetail && (
                 <div className="mt-6 space-y-4">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                    Detail information is ready for review.
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-slate-200 p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Role</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">
+                        {partnerDetail.role === 'ROLE_MERCHANT' ? 'Merchant' : 'Courier'}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Status</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">{partnerDetail.status.replaceAll('_', ' ')}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Phone</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">{partnerDetail.phoneNumber || 'Not provided'}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Created</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">{partnerDetail.createdAt}</p>
+                    </div>
+                  </div>
+
+                  {partnerDetail.statusReason && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Status reason</p>
+                      <p className="mt-1 text-sm leading-relaxed text-amber-950">{partnerDetail.statusReason}</p>
+                    </div>
+                  )}
+
+                  {partnerDetail.merchantProfile && (
+                    <div className="rounded-xl border border-slate-200 p-4">
+                      <h3 className="text-sm font-bold text-slate-900">Merchant registration</h3>
+                      <dl className="mt-3 space-y-2 text-sm">
+                        <div className="flex justify-between gap-4"><dt className="text-slate-500">Business name</dt><dd className="text-right font-medium text-slate-900">{partnerDetail.merchantProfile.businessName || 'Not provided'}</dd></div>
+                        <div className="flex justify-between gap-4"><dt className="text-slate-500">Registration number</dt><dd className="text-right font-mono text-slate-900">{partnerDetail.merchantProfile.registrationNumber || 'Not provided'}</dd></div>
+                        <div className="flex justify-between gap-4"><dt className="text-slate-500">Webhook URL</dt><dd className="max-w-[15rem] truncate text-right font-mono text-slate-900">{partnerDetail.merchantProfile.webhookUrl || 'Not configured'}</dd></div>
+                        <div className="flex justify-between gap-4"><dt className="text-slate-500">OAuth client ID</dt><dd className="max-w-[15rem] truncate text-right font-mono text-slate-900">{partnerDetail.merchantProfile.oauthClientId || 'Not configured'}</dd></div>
+                      </dl>
+                    </div>
+                  )}
+
+                  {partnerDetail.courierProfile && (
+                    <div className="rounded-xl border border-slate-200 p-4">
+                      <h3 className="text-sm font-bold text-slate-900">Courier verification</h3>
+                      <dl className="mt-3 space-y-2 text-sm">
+                        <div className="flex justify-between gap-4"><dt className="text-slate-500">Vehicle</dt><dd className="text-right font-medium text-slate-900">{partnerDetail.courierProfile.vehicleType || 'Not provided'}</dd></div>
+                        <div className="flex justify-between gap-4"><dt className="text-slate-500">License plate</dt><dd className="text-right font-mono text-slate-900">{partnerDetail.courierProfile.licensePlate || 'Not provided'}</dd></div>
+                        <div className="flex justify-between gap-4"><dt className="text-slate-500">Availability</dt><dd className="text-right font-medium text-slate-900">{partnerDetail.courierProfile.isAvailable ? 'Available' : 'Unavailable'}</dd></div>
+                        <div className="flex justify-between gap-4"><dt className="text-slate-500">Active deliveries</dt><dd className="text-right font-medium text-slate-900">{partnerDetail.courierProfile.activeDeliveryCount ?? 0}</dd></div>
+                        <div className="flex justify-between gap-4"><dt className="text-slate-500">Assigned zone</dt><dd className="text-right font-medium text-slate-900">{partnerDetail.courierProfile.assignedZoneId ?? 'Not assigned'}</dd></div>
+                      </dl>
+                    </div>
+                  )}
+
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
+                    Authentication provider: <span className="font-medium text-slate-700">{partnerDetail.authProvider || 'Unknown'}</span>
                   </div>
                 </div>
               )}
