@@ -34,6 +34,33 @@ interface Partner {
   licensePlate?: string;
 }
 
+interface PartnerDetail {
+  id: string;
+  email: string;
+  fullName: string;
+  phoneNumber?: string;
+  role: 'ROLE_MERCHANT' | 'ROLE_COURIER';
+  status: 'ACTIVE' | 'PENDING_APPROVAL' | 'SUSPENDED' | 'REJECTED';
+  statusReason?: string;
+  authProvider?: string;
+  createdAt: string;
+  courierProfile?: {
+    courierId: string;
+    vehicleType?: string;
+    licensePlate?: string;
+    isAvailable?: boolean;
+    activeDeliveryCount?: number;
+    assignedZoneId?: number;
+  };
+  merchantProfile?: {
+    merchantId: string;
+    businessName?: string;
+    registrationNumber?: string;
+    webhookUrl?: string;
+    oauthClientId?: string;
+  };
+}
+
 const SEED_PARTNERS: Partner[] = [
   {
     id: 'p1',
