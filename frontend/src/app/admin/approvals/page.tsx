@@ -725,7 +725,15 @@ export default function AdminApprovalsPage() {
 
               {detailError && (
                 <div role="alert" className="mt-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-                  {detailError}
+                  <p>{detailError}</p>
+                  <button
+                    type="button"
+                    onClick={() => void handleViewDetails(detailTarget)}
+                    disabled={detailLoading}
+                    className="mt-3 rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-800 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Retry loading details
+                  </button>
                 </div>
               )}
 
