@@ -18,7 +18,6 @@ export async function GET(request: Request) {
     const backendRes = await fetch('http://localhost:8080/api/v1/pricing/rules', {
       headers: {
         'Authorization': request.headers.get('authorization') || '',
-        'X-User-Role': request.headers.get('x-user-role') || 'ROLE_ADMIN',
       },
       signal: AbortSignal.timeout(5000),
     });
