@@ -236,6 +236,17 @@ export default function AdminApprovalsPage() {
     setDetailError(null);
   };
 
+  useEffect(() => {
+    if (!detailTarget) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeDetails();
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [detailTarget]);
+
   const handleApprove = async (partner: Partner) => {
     setBusyPartnerId(partner.id);
     setNotice(null);
