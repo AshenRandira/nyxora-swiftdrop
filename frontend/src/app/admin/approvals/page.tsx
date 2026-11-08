@@ -780,6 +780,53 @@ export default function AdminApprovalsPage() {
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
                     Authentication provider: <span className="font-medium text-slate-700">{partnerDetail.authProvider || 'Unknown'}</span>
                   </div>
+
+                  <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
+                    {partnerDetail.status === 'PENDING_APPROVAL' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => { closeDetails(); void handleApprove(detailTarget); }}
+                          disabled={busyPartnerId !== null}
+                          className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { handlePromptAction(detailTarget, 'REJECT'); closeDetails(); }}
+                          disabled={busyPartnerId !== null}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          Reject
+                        </button>
+                      </>
+                    )}
+
+                    {partnerDetail.status === 'ACTIVE' && (
+                      <button
+                        type="button"
+                        onClick={() => { handlePromptAction(detailTarget, 'SUSPEND'); closeDetails(); }}
+                        disabled={busyPartnerId !== null}
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Suspend account
+                      </button>
+                    )}
+
+                    {(partnerDetail.status === 'SUSPENDED' || partnerDetail.status === 'REJECTED') && (
+                      <button
+                        type="button"
+                        onClick={() => { closeDetails(); void handleApprove(detailTarget); }}
+                        disabled={busyPartnerId !== null}
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Re-activate account
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
