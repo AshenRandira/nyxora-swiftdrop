@@ -85,6 +85,8 @@ export default function AdminPricingPage() {
   // Modals
   const [showZoneModal, setShowZoneModal] = useState(false);
   const [showRuleModal, setShowRuleModal] = useState(false);
+  const [editingZoneId, setEditingZoneId] = useState<number | null>(null);
+  const [editingRuleId, setEditingRuleId] = useState<number | null>(null);
 
   // New Zone Form
   const [newZoneCode, setNewZoneCode] = useState('');
@@ -214,7 +216,7 @@ export default function AdminPricingPage() {
     }
   };
 
-  const handleCreateZone = async (e: React.FormEvent) => {
+  const handleSaveZone = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newZoneCode.trim() || !newZoneName.trim() || !newDistrict.trim()) return;
 
@@ -222,14 +224,16 @@ export default function AdminPricingPage() {
     setPageError('');
     setPageNotice('');
     try {
-      const response = await fetch('/api/v1/zones', {
-        method: 'POST',
+      const isEditing = editingZoneId !== null;
+      const response = await fetch(isEditing ? `/api/v1/zones/${editingZoneId}` : '/api/v1/zones', {
+        method: isEditing ? 'PUT' : 'POST',
         headers: adminHeaders(),
         body: JSON.stringify({
           zoneCode: newZoneCode.trim().toUpperCase(),
           zoneName: newZoneName.trim(),
           district: newDistrict.trim(),
           baseSurcharge: Number(newBaseSurcharge),
+          ...(isEditing ? {} : { isActive: true }),
         }),
       });
       if (!response.ok) throw new Error(await readApiError(response));
@@ -237,8 +241,9 @@ export default function AdminPricingPage() {
       setNewZoneCode('');
       setNewZoneName('');
       setNewDistrict('');
+      setEditingZoneId(null);
       setShowZoneModal(false);
-      setPageNotice('Delivery zone created successfully.');
+      setPageNotice(isEditing ? 'Delivery zone updated successfully.' : 'Delivery zone created successfully.');
     } catch (error) {
       setPageError(error instanceof Error ? error.message : 'Unable to create the delivery zone.');
     } finally {
@@ -246,7 +251,7 @@ export default function AdminPricingPage() {
     }
   };
 
-  const handleCreateRule = async (e: React.FormEvent) => {
+  const handleSaveRule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!zones.some((zone) => zone.id === ruleOriginId) || !zones.some((zone) => zone.id === ruleDestId)) return;
 
@@ -254,27 +259,79 @@ export default function AdminPricingPage() {
     setPageError('');
     setPageNotice('');
     try {
-      const response = await fetch('/api/v1/pricing/rules', {
-        method: 'POST',
+      const isEditing = editingRuleId !== null;
+      const response = await fetch(isEditing ? `/api/v1/pricing/rules/${editingRuleId}` : '/api/v1/pricing/rules', {
+        method: isEditing ? 'PUT' : 'POST',
         headers: adminHeaders(),
         body: JSON.stringify({
-          originZoneId: ruleOriginId,
-          destinationZoneId: ruleDestId,
           baseFee: Number(ruleBaseFee),
           ratePerKg: Number(ruleRatePerKg),
-          parcelSize: ruleSize,
           sizeMultiplier: Number(ruleMultiplier),
+          ...(isEditing ? {} : {
+            originZoneId: ruleOriginId,
+            destinationZoneId: ruleDestId,
+            parcelSize: ruleSize,
+          }),
         }),
       });
       if (!response.ok) throw new Error(await readApiError(response));
       await loadPricingData();
+      setEditingRuleId(null);
       setShowRuleModal(false);
-      setPageNotice('Pricing rule created successfully.');
+      setPageNotice(isEditing ? 'Pricing rule updated successfully.' : 'Pricing rule created successfully.');
     } catch (error) {
       setPageError(error instanceof Error ? error.message : 'Unable to create the pricing rule.');
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const startEditingZone = (zone: DeliveryZone) => {
+    setEditingZoneId(zone.id);
+    setNewZoneCode(zone.zoneCode);
+    setNewZoneName(zone.zoneName);
+    setNewDistrict(zone.district);
+    setNewBaseSurcharge(zone.baseSurcharge.toFixed(2));
+    setShowZoneModal(true);
+  };
+
+  const startEditingRule = (rule: PricingRule) => {
+    setEditingRuleId(rule.id);
+    setRuleOriginId(rule.originZone.id);
+    setRuleDestId(rule.destinationZone.id);
+    setRuleBaseFee(rule.baseFee.toFixed(2));
+    setRuleRatePerKg(rule.ratePerKg.toFixed(2));
+    setRuleSize(rule.parcelSize);
+    setRuleMultiplier(rule.sizeMultiplier.toFixed(2));
+    setShowRuleModal(true);
+  };
+
+  const closeZoneModal = () => {
+    setEditingZoneId(null);
+    setShowZoneModal(false);
+  };
+
+  const closeRuleModal = () => {
+    setEditingRuleId(null);
+    setShowRuleModal(false);
+  };
+
+  const openNewZoneModal = () => {
+    setEditingZoneId(null);
+    setNewZoneCode('');
+    setNewZoneName('');
+    setNewDistrict('');
+    setNewBaseSurcharge('25.00');
+    setShowZoneModal(true);
+  };
+
+  const openNewRuleModal = () => {
+    setEditingRuleId(null);
+    setRuleBaseFee('400.00');
+    setRuleRatePerKg('100.00');
+    setRuleSize('MEDIUM');
+    setRuleMultiplier('1.25');
+    setShowRuleModal(true);
   };
 
   return (
@@ -306,14 +363,14 @@ export default function AdminPricingPage() {
 
             <div className="flex items-center gap-2.5">
               <button
-                onClick={() => setShowZoneModal(true)}
+                onClick={openNewZoneModal}
                 className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 shadow-xs transition-colors cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Zone</span>
               </button>
               <button
-                onClick={() => setShowRuleModal(true)}
+                onClick={openNewRuleModal}
                 className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 shadow-xs transition-colors cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -691,7 +748,7 @@ export default function AdminPricingPage() {
                 <p className="text-xs text-slate-500">Maps directly to the PostgreSQL delivery_zones table</p>
               </div>
               <button
-                onClick={() => setShowZoneModal(true)}
+                onClick={openNewZoneModal}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 transition-colors cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -733,6 +790,13 @@ export default function AdminPricingPage() {
                       </td>
                       <td className="px-5 py-3 text-right">
                         <button
+                          onClick={() => startEditingZone(z)}
+                          disabled={isSaving}
+                          className="px-3 py-1 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+                        >
+                          Edit
+                        </button>
+                        <button
                           onClick={() => handleToggleZone(z.id)}
                           disabled={isSaving}
                           aria-label={`${z.isActive ? 'Deactivate' : 'Activate'} ${z.zoneCode}`}
@@ -758,7 +822,7 @@ export default function AdminPricingPage() {
                 <p className="text-xs text-slate-500">Unique constraint across (origin_zone_id, destination_zone_id, parcel_size)</p>
               </div>
               <button
-                onClick={() => setShowRuleModal(true)}
+                onClick={openNewRuleModal}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 transition-colors cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -775,7 +839,7 @@ export default function AdminPricingPage() {
                     <th className="px-5 py-3">Base Fee</th>
                     <th className="px-5 py-3">Rate / Kg</th>
                     <th className="px-5 py-3">Multiplier</th>
-                    <th className="px-5 py-3 text-right">Database Constraint</th>
+                    <th className="px-5 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -795,7 +859,13 @@ export default function AdminPricingPage() {
                       <td className="px-5 py-3 font-mono font-semibold text-slate-800">LKR {r.ratePerKg.toFixed(2)}</td>
                       <td className="px-5 py-3 font-mono text-slate-900 font-bold">{r.sizeMultiplier.toFixed(2)}×</td>
                       <td className="px-5 py-3 text-right">
-                        <span className="text-[11px] font-medium text-slate-400">uk_pricing_rule OK</span>
+                        <button
+                          onClick={() => startEditingRule(r)}
+                          disabled={isSaving}
+                          className="px-3 py-1 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+                        >
+                          Edit
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -810,13 +880,13 @@ export default function AdminPricingPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
             <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h3 className="text-base font-bold text-slate-900">Add Sri Lankan Delivery Zone</h3>
-                <button onClick={() => setShowZoneModal(false)} className="text-slate-400 hover:text-slate-600">
+                <h3 className="text-base font-bold text-slate-900">{editingZoneId === null ? 'Add' : 'Edit'} Sri Lankan Delivery Zone</h3>
+                <button onClick={closeZoneModal} className="text-slate-400 hover:text-slate-600">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleCreateZone} className="space-y-3.5">
+              <form onSubmit={handleSaveZone} className="space-y-3.5">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                     Zone Code (e.g. NP-JAF-01)
@@ -827,6 +897,7 @@ export default function AdminPricingPage() {
                     onChange={(e) => setNewZoneCode(e.target.value)}
                     placeholder="e.g. NP-JAF-01"
                     required
+                    disabled={editingZoneId !== null}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -875,7 +946,7 @@ export default function AdminPricingPage() {
                 <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                   <button
                     type="button"
-                    onClick={() => setShowZoneModal(false)}
+                    onClick={closeZoneModal}
                     className="px-4 py-2 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
                   >
                     Cancel
@@ -885,7 +956,7 @@ export default function AdminPricingPage() {
                     disabled={isSaving}
                     className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 shadow-xs transition-colors cursor-pointer"
                   >
-                    {isSaving ? 'Saving...' : 'Save Zone'}
+                    {isSaving ? 'Saving...' : editingZoneId === null ? 'Save Zone' : 'Update Zone'}
                   </button>
                 </div>
               </form>
@@ -898,13 +969,13 @@ export default function AdminPricingPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
             <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h3 className="text-base font-bold text-slate-900">Add Pricing Matrix Rule</h3>
-                <button onClick={() => setShowRuleModal(false)} className="text-slate-400 hover:text-slate-600">
+                <h3 className="text-base font-bold text-slate-900">{editingRuleId === null ? 'Add' : 'Edit'} Pricing Matrix Rule</h3>
+                <button onClick={closeRuleModal} className="text-slate-400 hover:text-slate-600">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleCreateRule} className="space-y-3.5">
+              <form onSubmit={handleSaveRule} className="space-y-3.5">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
@@ -913,6 +984,7 @@ export default function AdminPricingPage() {
                     <select
                       value={ruleOriginId}
                       onChange={(e) => setRuleOriginId(Number(e.target.value))}
+                      disabled={editingRuleId !== null}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800"
                     >
                       {zones.map(z => (
@@ -927,6 +999,7 @@ export default function AdminPricingPage() {
                     <select
                       value={ruleDestId}
                       onChange={(e) => setRuleDestId(Number(e.target.value))}
+                      disabled={editingRuleId !== null}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800"
                     >
                       {zones.map(z => (
@@ -971,6 +1044,7 @@ export default function AdminPricingPage() {
                     <select
                       value={ruleSize}
                       onChange={(e) => setRuleSize(e.target.value as 'SMALL' | 'MEDIUM' | 'LARGE')}
+                      disabled={editingRuleId !== null}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800"
                     >
                       <option value="SMALL">SMALL (1.0x)</option>
@@ -995,7 +1069,7 @@ export default function AdminPricingPage() {
                 <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                   <button
                     type="button"
-                    onClick={() => setShowRuleModal(false)}
+                    onClick={closeRuleModal}
                     className="px-4 py-2 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
                   >
                     Cancel
@@ -1005,7 +1079,7 @@ export default function AdminPricingPage() {
                     disabled={isSaving}
                     className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 shadow-xs transition-colors cursor-pointer"
                   >
-                    {isSaving ? 'Saving...' : 'Save Rule'}
+                    {isSaving ? 'Saving...' : editingRuleId === null ? 'Save Rule' : 'Update Rule'}
                   </button>
                 </div>
               </form>
