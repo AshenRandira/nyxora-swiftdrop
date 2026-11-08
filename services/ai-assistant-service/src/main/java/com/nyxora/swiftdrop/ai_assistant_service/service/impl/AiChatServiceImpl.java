@@ -3,6 +3,8 @@ package com.nyxora.swiftdrop.ai_assistant_service.service.impl;
 import com.nyxora.swiftdrop.ai_assistant_service.dto.request.ChatRequest;
 import com.nyxora.swiftdrop.ai_assistant_service.dto.response.ChatResponse;
 import com.nyxora.swiftdrop.ai_assistant_service.service.AiChatService;
+import com.nyxora.swiftdrop.ai_assistant_service.tool.ParcelTrackingTool;
+import com.nyxora.swiftdrop.ai_assistant_service.tool.RateQuoteTool;
 import com.nyxora.swiftdrop.common.security.util.PiiMaskingUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,9 +23,15 @@ public class AiChatServiceImpl implements AiChatService {
 
     private final ChatClient chatClient;
 
-    public AiChatServiceImpl(ChatClient.Builder chatClientBuilder, ChatMemory chatMemory) {
+    public AiChatServiceImpl(
+            ChatClient.Builder chatClientBuilder,
+            ChatMemory chatMemory,
+            ParcelTrackingTool parcelTrackingTool,
+            RateQuoteTool rateQuoteTool) {
+
         this.chatClient = chatClientBuilder
                 .defaultSystem(SYSTEM_PROMPT)
+                .defaultTools(parcelTrackingTool, rateQuoteTool)
                 .defaultAdvisors(
                         MessageChatMemoryAdvisor.builder(chatMemory).build()
                 )
@@ -50,22 +58,6 @@ public class AiChatServiceImpl implements AiChatService {
 
         log.info("Processing chat request for conversationId '{}' with message: '{}'",
                 conversationId, PiiMaskingUtil.maskText(message));
-
-        String normalized = message.toLowerCase();
-
-        if (normalized.matches(
-                "(?s).*(how much|cost|price|fee|quote).*")) {
-
-            return "I can help calculate SwiftDrop delivery fees, "
-                    + "but the pricing service is not connected yet.";
-        }
-
-        if (normalized.matches(
-                "(?s).*(track|tracking|where is my parcel|delivery status).*")) {
-
-            return "I can help track SwiftDrop parcels, "
-                    + "but live tracking is not connected yet.";
-        }
 
         return chatClient.prompt()
                 .user(message)
