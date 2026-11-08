@@ -622,6 +622,14 @@ export default function AdminApprovalsPage() {
 
                         {/* Action Buttons */}
                         <td className="px-5 py-3.5 text-right">
+                          <button
+                            onClick={() => void handleViewDetails(p)}
+                            disabled={busyPartnerId !== null}
+                            className="mb-2 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+                          >
+                            View details
+                          </button>
+
                           {p.status === 'PENDING_APPROVAL' && (
                             <div className="flex items-center justify-end gap-2">
                               <button
