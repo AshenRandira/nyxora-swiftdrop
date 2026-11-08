@@ -75,7 +75,7 @@ public class ZonePricingAdminController {
                description = "Partially updates an existing zone. Only provided fields are changed. Requires ROLE_ADMIN.")
     public ResponseEntity<DeliveryZoneResponse> updateZone(
             @PathVariable Integer id,
-            @RequestBody UpdateZoneRequest request
+            @Valid @RequestBody UpdateZoneRequest request
     ) {
         return ResponseEntity.ok(DeliveryZoneResponse.from(zonePricingService.updateZone(id, request)));
     }
@@ -118,7 +118,7 @@ public class ZonePricingAdminController {
                description = "Adjusts base fee, rate-per-kg, or size multiplier for an existing rule. Requires ROLE_ADMIN.")
     public ResponseEntity<PricingRuleResponse> updatePricingRule(
             @PathVariable Integer id,
-            @RequestBody UpdatePricingRuleRequest request
+            @Valid @RequestBody UpdatePricingRuleRequest request
     ) {
         return ResponseEntity.ok(PricingRuleResponse.from(zonePricingService.updatePricingRule(id, request)));
     }
