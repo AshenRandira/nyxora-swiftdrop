@@ -1,10 +1,15 @@
 package com.nyxora.swiftdrop.auth.config;
 
+import com.nyxora.swiftdrop.auth.entity.Courier;
+import com.nyxora.swiftdrop.auth.entity.Merchant;
 import com.nyxora.swiftdrop.auth.entity.Role;
 import com.nyxora.swiftdrop.auth.entity.User;
 import com.nyxora.swiftdrop.auth.entity.enums.AuthProvider;
 import com.nyxora.swiftdrop.auth.entity.enums.RoleName;
 import com.nyxora.swiftdrop.auth.entity.enums.UserStatus;
+import com.nyxora.swiftdrop.auth.entity.enums.VehicleType;
+import com.nyxora.swiftdrop.auth.repository.CourierRepository;
+import com.nyxora.swiftdrop.auth.repository.MerchantRepository;
 import com.nyxora.swiftdrop.auth.repository.RoleRepository;
 import com.nyxora.swiftdrop.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
  * Startup Data Initializer that primes the auth_db with:
  * 1. Default RBAC Roles (ROLE_CUSTOMER, ROLE_MERCHANT, ROLE_COURIER, ROLE_ADMIN)
  * 2. Default Platform Administrator Account
+ * 3. Default Demo Courier Account (Task 2.5)
+ * 4. Default Demo Merchant Account
  */
 @Slf4j
 @Component
@@ -26,10 +33,18 @@ public class DataInitializer implements CommandLineRunner {
 
     private final RoleRepository roleRepository;
     private final UserRepository userRepository;
+    private final CourierRepository courierRepository;
+    private final MerchantRepository merchantRepository;
     private final PasswordEncoder passwordEncoder;
 
     private static final String DEFAULT_ADMIN_EMAIL = "admin@swiftdrop.lk";
     private static final String DEFAULT_ADMIN_PASSWORD = "Admin@SwiftDrop2026!";
+
+    private static final String DEFAULT_COURIER_EMAIL = "courier.kamal@swiftdrop.lk";
+    private static final String DEFAULT_COURIER_PASSWORD = "Courier@123";
+
+    private static final String DEFAULT_MERCHANT_EMAIL = "merchant.daraz@swiftdrop.lk";
+    private static final String DEFAULT_MERCHANT_PASSWORD = "Merchant@123";
 
     @Override
     @Transactional
@@ -37,6 +52,8 @@ public class DataInitializer implements CommandLineRunner {
         log.info("[DataInitializer] Verifying database seeding for auth_db...");
         seedRoles();
         seedDefaultAdmin();
+        seedDefaultCourier();
+        seedDefaultMerchant();
         log.info("[DataInitializer] Database verification complete.");
     }
 
@@ -77,6 +94,72 @@ public class DataInitializer implements CommandLineRunner {
             log.info("[DataInitializer] Successfully created default admin account: {}", DEFAULT_ADMIN_EMAIL);
         } else {
             log.info("[DataInitializer] Default admin account already exists.");
+        }
+    }
+
+    private void seedDefaultCourier() {
+        if (!userRepository.existsByEmail(DEFAULT_COURIER_EMAIL)) {
+            Role courierRole = roleRepository.findByName(RoleName.ROLE_COURIER)
+                    .orElseThrow(() -> new IllegalStateException("ROLE_COURIER not found during courier seeding"));
+
+            User courierUser = User.builder()
+                    .role(courierRole)
+                    .email(DEFAULT_COURIER_EMAIL)
+                    .passwordHash(passwordEncoder.encode(DEFAULT_COURIER_PASSWORD))
+                    .fullName("Kamal Perera")
+                    .phoneNumber("+94771234567")
+                    .status(UserStatus.ACTIVE)
+                    .authProvider(AuthProvider.LOCAL)
+                    .build();
+
+            User savedUser = userRepository.save(courierUser);
+
+            Courier courier = Courier.builder()
+                    .user(savedUser)
+                    .vehicleType(VehicleType.MOTORCYCLE)
+                    .licensePlate("WP-BAM-1234")
+                    .assignedZoneId(1)
+                    .isAvailable(true)
+                    .activeDeliveryCount(0)
+                    .build();
+
+            courierRepository.save(courier);
+            log.info("[DataInitializer] Successfully created default courier account: {}", DEFAULT_COURIER_EMAIL);
+        } else {
+            log.info("[DataInitializer] Default courier account already exists.");
+        }
+    }
+
+    private void seedDefaultMerchant() {
+        if (!userRepository.existsByEmail(DEFAULT_MERCHANT_EMAIL)) {
+            Role merchantRole = roleRepository.findByName(RoleName.ROLE_MERCHANT)
+                    .orElseThrow(() -> new IllegalStateException("ROLE_MERCHANT not found during merchant seeding"));
+
+            User merchantUser = User.builder()
+                    .role(merchantRole)
+                    .email(DEFAULT_MERCHANT_EMAIL)
+                    .passwordHash(passwordEncoder.encode(DEFAULT_MERCHANT_PASSWORD))
+                    .fullName("Daraz Sri Lanka")
+                    .phoneNumber("+94112345678")
+                    .status(UserStatus.ACTIVE)
+                    .authProvider(AuthProvider.LOCAL)
+                    .build();
+
+            User savedUser = userRepository.save(merchantUser);
+
+            Merchant merchant = Merchant.builder()
+                    .user(savedUser)
+                    .businessName("Daraz Sri Lanka PVT LTD")
+                    .registrationNumber("PV-123456")
+                    .webhookUrl("http://localhost:8083/api/v1/webhooks/demo-receiver")
+                    .webhookSecret("demo-secret-12345")
+                    .oauthClientId("mer_daraz123456")
+                    .build();
+
+            merchantRepository.save(merchant);
+            log.info("[DataInitializer] Successfully created default merchant account: {}", DEFAULT_MERCHANT_EMAIL);
+        } else {
+            log.info("[DataInitializer] Default merchant account already exists.");
         }
     }
 }
