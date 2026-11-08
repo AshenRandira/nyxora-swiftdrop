@@ -30,12 +30,11 @@ export async function GET(request: Request) {
       },
     });
   } catch {
-    // Backend offline -> serve seed rules cleanly
+    return NextResponse.json(
+      { title: 'Parcel service unavailable', detail: 'Pricing rules are unavailable because the parcel service is offline.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } },
+    );
   }
-
-  return NextResponse.json(SEED_RULES, {
-    headers: { 'X-SwiftDrop-Data-Source': 'seed' },
-  });
 }
 
 export async function POST(request: Request) {
