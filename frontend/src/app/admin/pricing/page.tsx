@@ -109,6 +109,7 @@ export default function AdminPricingPage() {
   const [calcSize, setCalcSize] = useState<'SMALL' | 'MEDIUM' | 'LARGE'>('MEDIUM');
   const [calcTier, setCalcTier] = useState<'STANDARD' | 'MERCHANT' | 'EXPRESS'>('EXPRESS');
   const [quoteResult, setQuoteResult] = useState<QuoteResponse | null>(null);
+  const [quoteSource, setQuoteSource] = useState<'BACKEND' | 'OFFLINE'>('OFFLINE');
   const [isSaving, setIsSaving] = useState(false);
   const [pageError, setPageError] = useState('');
   const [pageNotice, setPageNotice] = useState('');
@@ -137,17 +138,7 @@ export default function AdminPricingPage() {
     loadPricingData().catch(() => undefined);
   }, [loadPricingData]);
 
-  // Recalculate Live Quote whenever parameters change
-  useEffect(() => {
-    runQuoteCalculation();
-  }, [calcOrigin, calcDest, calcWeight, calcSize, calcTier, zones, rules]);
-
-  const runQuoteCalculation = () => {
-    const origin = zones.find(z => z.id === calcOrigin) || zones[0];
-    const dest = zones.find(z => z.id === calcDest) || zones[1] || zones[0];
-    if (!origin || !dest) return;
-
-    // Find rule or fallback to sensible default for the offline simulator.
+  const runOfflineQuoteCalculation = (origin: DeliveryZone, dest: DeliveryZone) => {
     const rule = rules.find(r =>
       r.originZone.id === origin.id &&
       r.destinationZone.id === dest.id &&
@@ -158,14 +149,11 @@ export default function AdminPricingPage() {
     const ratePerKg = rule ? rule.ratePerKg : 120;
     const sizeMultipliers = { 'SMALL': 1.0, 'MEDIUM': 1.25, 'LARGE': 1.5 };
     const sizeMult = rule ? rule.sizeMultiplier : sizeMultipliers[calcSize];
-
     const standardWeightCharge = roundCurrency(calcWeight * ratePerKg);
     let displayedBaseFee = baseFee;
     let displayedWeightCharge = standardWeightCharge;
     let subtotal = roundCurrency((displayedBaseFee + displayedWeightCharge) * sizeMult);
-    // The backend applies only the destination surcharge.
     const zoneSurcharges = dest.baseSurcharge;
-
     let discount = 0;
     let expressSur = 0;
     let total = subtotal + zoneSurcharges;
@@ -191,7 +179,42 @@ export default function AdminPricingPage() {
       expressSurcharge: expressSur,
       totalFee: Math.max(0, roundCurrency(total))
     });
+    setQuoteSource('OFFLINE');
   };
+
+  const runQuoteCalculation = useCallback(async (signal?: AbortSignal) => {
+    const origin = zones.find(z => z.id === calcOrigin) || zones[0];
+    const dest = zones.find(z => z.id === calcDest) || zones[1] || zones[0];
+    if (!origin || !dest) return;
+
+    try {
+      const response = await fetch('/api/v1/parcels/quote', {
+        method: 'POST',
+        headers: adminHeaders(),
+        body: JSON.stringify({
+          originZoneId: origin.id,
+          destinationZoneId: dest.id,
+          weightKg: calcWeight,
+          parcelSize: calcSize,
+          tier: calcTier,
+        }),
+        signal,
+      });
+      if (!response.ok) throw new Error(await readApiError(response));
+      setQuoteResult(await response.json());
+      setQuoteSource('BACKEND');
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      runOfflineQuoteCalculation(origin, dest);
+    }
+  }, [adminHeaders, calcOrigin, calcDest, calcWeight, calcSize, calcTier, zones, rules]);
+
+  // Recalculate through the real pricing engine whenever parameters change.
+  useEffect(() => {
+    const controller = new AbortController();
+    void runQuoteCalculation(controller.signal);
+    return () => controller.abort();
+  }, [runQuoteCalculation]);
 
   const handleToggleZone = async (id: number) => {
     const zone = zones.find((candidate) => candidate.id === id);
@@ -726,7 +749,9 @@ export default function AdminPricingPage() {
                     <span className="text-xs uppercase tracking-wider font-semibold text-slate-300 block">
                       Grand Total Fee (LKR)
                     </span>
-                    <span className="text-[11px] text-slate-400">Guaranteed Quote for Booking</span>
+                    <span className="text-[11px] text-slate-400">
+                      {quoteSource === 'BACKEND' ? 'Live PricingEngine quote' : 'Offline preview - backend unavailable'}
+                    </span>
                   </div>
                   <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight">
                     LKR {quoteResult.totalFee.toFixed(2)}
