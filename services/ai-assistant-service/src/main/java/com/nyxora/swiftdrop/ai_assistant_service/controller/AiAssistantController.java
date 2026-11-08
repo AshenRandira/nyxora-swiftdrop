@@ -48,10 +48,8 @@ public class AiAssistantController {
     public ResponseEntity<ChatResponse> chat(
             @Valid @RequestBody ChatRequest request) {
 
-        String reply = aiChatService.chat(request.message());
+        ChatResponse response = aiChatService.chat(request);
 
-        return ResponseEntity.ok(
-            new ChatResponse(reply)
-        );
+        return ResponseEntity.ok(response);
     }
 }

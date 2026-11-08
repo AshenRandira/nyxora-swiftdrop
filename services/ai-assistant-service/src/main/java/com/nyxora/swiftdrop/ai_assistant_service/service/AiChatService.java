@@ -45,18 +45,27 @@ public interface AiChatService {
         """;
 
     /**
-     * Processes a user chat message and returns the AI assistant response.
+     * Processes a user chat request and returns the AI assistant response.
      *
-     * @param request The chat request containing the user message
-     * @return The AI response containing the generated reply
+     * @param request The chat request containing the user message and optional conversationId
+     * @return The AI response containing the generated reply and active conversationId
      */
     ChatResponse chat(ChatRequest request);
 
     /**
-     * Convenience method to process a raw message string and return the generated reply string.
+     * Convenience method to process a raw message string with a new or default conversation.
      *
      * @param message The raw prompt/message string
      * @return The generated AI reply string
      */
     String chat(String message);
+
+    /**
+     * Processes a message within a specific conversation context.
+     *
+     * @param message The raw prompt/message string
+     * @param conversationId The identifier for the conversation context
+     * @return The generated AI reply string
+     */
+    String chat(String message, String conversationId);
 }
