@@ -243,6 +243,13 @@ export default function AdminPricingPage() {
     e.preventDefault();
     if (!newZoneCode.trim() || !newZoneName.trim() || !newDistrict.trim()) return;
 
+    const baseSurcharge = Number(newBaseSurcharge);
+    if (!Number.isFinite(baseSurcharge) || baseSurcharge < 0) {
+      setPageError('Base surcharge must be a number greater than or equal to zero.');
+      setPageNotice('');
+      return;
+    }
+
     setIsSaving(true);
     setPageError('');
     setPageNotice('');
@@ -255,7 +262,7 @@ export default function AdminPricingPage() {
           zoneCode: newZoneCode.trim().toUpperCase(),
           zoneName: newZoneName.trim(),
           district: newDistrict.trim(),
-          baseSurcharge: Number(newBaseSurcharge),
+          baseSurcharge,
           ...(isEditing ? {} : { isActive: true }),
         }),
       });
@@ -278,6 +285,31 @@ export default function AdminPricingPage() {
     e.preventDefault();
     if (!zones.some((zone) => zone.id === ruleOriginId) || !zones.some((zone) => zone.id === ruleDestId)) return;
 
+    if (ruleOriginId === ruleDestId) {
+      setPageError('Origin and destination zones must be different.');
+      setPageNotice('');
+      return;
+    }
+
+    const baseFee = Number(ruleBaseFee);
+    const ratePerKg = Number(ruleRatePerKg);
+    const sizeMultiplier = Number(ruleMultiplier);
+    if (!Number.isFinite(baseFee) || baseFee <= 0) {
+      setPageError('Base fee must be greater than zero.');
+      setPageNotice('');
+      return;
+    }
+    if (!Number.isFinite(ratePerKg) || ratePerKg <= 0) {
+      setPageError('Rate per kilogram must be greater than zero.');
+      setPageNotice('');
+      return;
+    }
+    if (!Number.isFinite(sizeMultiplier) || sizeMultiplier < 1) {
+      setPageError('Size multiplier must be at least 1.00.');
+      setPageNotice('');
+      return;
+    }
+
     setIsSaving(true);
     setPageError('');
     setPageNotice('');
@@ -287,9 +319,9 @@ export default function AdminPricingPage() {
         method: isEditing ? 'PUT' : 'POST',
         headers: adminHeaders(),
         body: JSON.stringify({
-          baseFee: Number(ruleBaseFee),
-          ratePerKg: Number(ruleRatePerKg),
-          sizeMultiplier: Number(ruleMultiplier),
+          baseFee,
+          ratePerKg,
+          sizeMultiplier,
           ...(isEditing ? {} : {
             originZoneId: ruleOriginId,
             destinationZoneId: ruleDestId,
@@ -962,6 +994,7 @@ export default function AdminPricingPage() {
                   <input
                     type="number"
                     step="0.01"
+                    min="0"
                     value={newBaseSurcharge}
                     onChange={(e) => setNewBaseSurcharge(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1042,6 +1075,8 @@ export default function AdminPricingPage() {
                     <input
                       type="number"
                       step="0.01"
+                      min="0.01"
+                      required
                       value={ruleBaseFee}
                       onChange={(e) => setRuleBaseFee(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
@@ -1054,6 +1089,8 @@ export default function AdminPricingPage() {
                     <input
                       type="number"
                       step="0.01"
+                      min="0.01"
+                      required
                       value={ruleRatePerKg}
                       onChange={(e) => setRuleRatePerKg(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
@@ -1084,6 +1121,8 @@ export default function AdminPricingPage() {
                     <input
                       type="number"
                       step="0.05"
+                      min="1"
+                      required
                       value={ruleMultiplier}
                       onChange={(e) => setRuleMultiplier(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
