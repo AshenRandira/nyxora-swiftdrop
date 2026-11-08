@@ -111,6 +111,7 @@ export default function AdminPricingPage() {
   const [quoteResult, setQuoteResult] = useState<QuoteResponse | null>(null);
   const [quoteSource, setQuoteSource] = useState<'BACKEND' | 'OFFLINE'>('OFFLINE');
   const [pricingDataSource, setPricingDataSource] = useState<'BACKEND' | 'OFFLINE'>('OFFLINE');
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [pageError, setPageError] = useState('');
   const [pageNotice, setPageNotice] = useState('');
@@ -144,6 +145,20 @@ export default function AdminPricingPage() {
   useEffect(() => {
     loadPricingData().catch(() => undefined);
   }, [loadPricingData]);
+
+  const handleRefreshPricingData = async () => {
+    setIsRefreshing(true);
+    setPageError('');
+    setPageNotice('');
+    try {
+      await loadPricingData();
+      setPageNotice('Pricing data refreshed successfully.');
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : 'Unable to refresh pricing data.');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const runOfflineQuoteCalculation = (origin: DeliveryZone, dest: DeliveryZone) => {
     const rule = rules.find(r =>
@@ -451,6 +466,14 @@ export default function AdminPricingPage() {
             </div>
 
             <div className="flex items-center gap-2.5">
+              <button
+                onClick={() => void handleRefreshPricingData()}
+                disabled={isRefreshing || isSaving}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 shadow-xs transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span>{isRefreshing ? 'Refreshing...' : 'Refresh data'}</span>
+              </button>
               <button
                 onClick={openNewZoneModal}
                 className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 shadow-xs transition-colors cursor-pointer"
