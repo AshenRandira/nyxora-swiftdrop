@@ -681,6 +681,58 @@ export default function AdminApprovalsPage() {
           </div>
         </div>
 
+        {/* Modal: Partner Detail Inspection */}
+        {detailTarget && (
+          <div
+            className="fixed inset-0 z-40 flex items-center justify-end bg-slate-900/50 backdrop-blur-xs"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="partner-detail-title"
+          >
+            <div className="h-full w-full max-w-xl overflow-y-auto bg-white p-6 shadow-2xl">
+              <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Partner inspection</p>
+                  <h2 id="partner-detail-title" className="mt-1 text-xl font-bold text-slate-900">
+                    {detailTarget.fullName}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">{detailTarget.email}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeDetails}
+                  aria-label="Close partner details"
+                  className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {detailLoading && (
+                <div className="py-12 text-center text-sm text-slate-500">Loading partner details...</div>
+              )}
+
+              {detailError && (
+                <div role="alert" className="mt-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                  {detailError}
+                </div>
+              )}
+
+              {!detailLoading && !detailError && !partnerDetail && (
+                <div className="py-12 text-center text-sm text-slate-500">No partner details were returned.</div>
+              )}
+
+              {!detailLoading && !detailError && partnerDetail && (
+                <div className="mt-6 space-y-4">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                    Detail information is ready for review.
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Modal: Mandatory Justification */}
         {actionTarget && actionType && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
