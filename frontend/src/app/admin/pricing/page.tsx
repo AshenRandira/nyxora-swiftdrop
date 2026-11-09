@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
 import AppShell from '@/components/layout/AppShell';
-import { authStorage } from '@/lib/auth';
+import api from '@/lib/api';
 import {
   MapPin,
   Layers,
@@ -50,15 +51,16 @@ interface QuoteResponse {
   totalFee: number;
 }
 
-const readApiError = async (response: Response) => {
-  try {
-    const payload = await response.json();
-    if (payload?.detail) return payload.detail as string;
-    if (payload?.title) return payload.title as string;
-  } catch {
-    // Fall through to the HTTP status when the response is not JSON.
+const readApiError = (error: unknown, fallback: string) => {
+  if (axios.isAxiosError(error)) {
+    const payload = error.response?.data as {
+      detail?: string;
+      message?: string;
+      title?: string;
+    } | undefined;
+    return payload?.detail || payload?.message || payload?.title || fallback;
   }
-  return `Request failed with HTTP ${response.status}`;
+  return error instanceof Error ? error.message : fallback;
 };
 
 export default function AdminPricingPage() {
@@ -98,24 +100,11 @@ export default function AdminPricingPage() {
   const [pageError, setPageError] = useState('');
   const [pageNotice, setPageNotice] = useState('');
 
-  const adminHeaders = useCallback(() => {
-    const token = authStorage.getAccessToken();
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-    };
-  }, []);
-
   const loadPricingData = useCallback(async () => {
-    const [zonesRes, rulesRes] = await Promise.all([
-      fetch('/api/v1/zones', { headers: adminHeaders() }),
-      fetch('/api/v1/pricing/rules', { headers: adminHeaders() }),
+    const [{ data: zData }, { data: rData }] = await Promise.all([
+      api.get<DeliveryZone[]>('/api/v1/zones'),
+      api.get<PricingRule[]>('/api/v1/pricing/rules'),
     ]);
-
-    if (!zonesRes.ok) throw new Error(await readApiError(zonesRes));
-    if (!rulesRes.ok) throw new Error(await readApiError(rulesRes));
-
-    const [zData, rData] = await Promise.all([zonesRes.json(), rulesRes.json()]);
     const nextZones = Array.isArray(zData) ? zData : [];
     const nextRules = Array.isArray(rData) ? rData : [];
     const firstZoneId = nextZones[0]?.id ?? 0;
@@ -132,7 +121,7 @@ export default function AdminPricingPage() {
       setQuoteResult(null);
       setPageError('');
     }
-  }, [adminHeaders]);
+  }, []);
 
   // Load persisted pricing data before enabling the simulator.
   useEffect(() => {
@@ -141,7 +130,7 @@ export default function AdminPricingPage() {
       setZones([]);
       setRules([]);
       setQuoteResult(null);
-      setPageError(error instanceof Error ? error.message : 'Unable to load pricing data.');
+      setPageError(readApiError(error, 'Unable to load pricing data.'));
     });
   }, [loadPricingData]);
 
@@ -153,7 +142,7 @@ export default function AdminPricingPage() {
       await loadPricingData();
       setPageNotice('Pricing data refreshed successfully.');
     } catch (error) {
-      setPageError(error instanceof Error ? error.message : 'Unable to refresh pricing data.');
+      setPageError(readApiError(error, 'Unable to refresh pricing data.'));
     } finally {
       setIsRefreshing(false);
     }
@@ -177,34 +166,24 @@ export default function AdminPricingPage() {
     }
 
     try {
-      const response = await fetch('/api/v1/parcels/quote', {
-        method: 'POST',
-        headers: adminHeaders(),
-        body: JSON.stringify({
+      const response = await api.post<QuoteResponse>('/api/v1/parcels/quote', {
           originZoneId: origin.id,
           destinationZoneId: dest.id,
           weightKg: calcWeight,
           parcelSize: calcSize,
           tier: calcTier,
-        }),
+        }, {
         signal,
       });
 
-      if (!response.ok) {
-        const message = await readApiError(response);
-        setQuoteResult(null);
-        setPageError(message);
-        return;
-      }
-
-      setQuoteResult(await response.json());
+      setQuoteResult(response.data);
       setPageError('');
     } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
+      if (axios.isCancel(error)) return;
       setQuoteResult(null);
-      setPageError(error instanceof Error ? error.message : 'Unable to calculate a live quote.');
+      setPageError(readApiError(error, 'Unable to calculate a live quote.'));
     }
-  }, [adminHeaders, calcDest, calcOrigin, calcSize, calcTier, calcWeight, zones]);
+  }, [calcDest, calcOrigin, calcSize, calcTier, calcWeight, zones]);
 
   // Recalculate through the real pricing engine whenever parameters change.
   useEffect(() => {
@@ -222,16 +201,11 @@ export default function AdminPricingPage() {
     setPageError('');
     setPageNotice('');
     try {
-      const response = await fetch(`/api/v1/zones/${id}`, {
-        method: 'PUT',
-        headers: adminHeaders(),
-        body: JSON.stringify({ isActive: !zone.isActive }),
-      });
-      if (!response.ok) throw new Error(await readApiError(response));
+      await api.put(`/api/v1/zones/${id}`, { isActive: !zone.isActive });
       await loadPricingData();
       setPageNotice(`Zone ${zone.zoneCode} is now ${!zone.isActive ? 'active' : 'inactive'}.`);
     } catch (error) {
-      setPageError(error instanceof Error ? error.message : 'Unable to update the delivery zone.');
+      setPageError(readApiError(error, 'Unable to update the delivery zone.'));
     } finally {
       setIsSaving(false);
     }
@@ -253,18 +227,18 @@ export default function AdminPricingPage() {
     setPageNotice('');
     try {
       const isEditing = editingZoneId !== null;
-      const response = await fetch(isEditing ? `/api/v1/zones/${editingZoneId}` : '/api/v1/zones', {
-        method: isEditing ? 'PUT' : 'POST',
-        headers: adminHeaders(),
-        body: JSON.stringify({
-          zoneCode: newZoneCode.trim().toUpperCase(),
-          zoneName: newZoneName.trim(),
-          district: newDistrict.trim(),
-          baseSurcharge,
-          ...(isEditing ? {} : { isActive: true }),
-        }),
-      });
-      if (!response.ok) throw new Error(await readApiError(response));
+      const payload = {
+        zoneCode: newZoneCode.trim().toUpperCase(),
+        zoneName: newZoneName.trim(),
+        district: newDistrict.trim(),
+        baseSurcharge,
+        ...(isEditing ? {} : { isActive: true }),
+      };
+      if (isEditing) {
+        await api.put(`/api/v1/zones/${editingZoneId}`, payload);
+      } else {
+        await api.post('/api/v1/zones', payload);
+      }
       await loadPricingData();
       setNewZoneCode('');
       setNewZoneName('');
@@ -273,7 +247,7 @@ export default function AdminPricingPage() {
       setShowZoneModal(false);
       setPageNotice(isEditing ? 'Delivery zone updated successfully.' : 'Delivery zone created successfully.');
     } catch (error) {
-      setPageError(error instanceof Error ? error.message : 'Unable to create the delivery zone.');
+      setPageError(readApiError(error, 'Unable to save the delivery zone.'));
     } finally {
       setIsSaving(false);
     }
@@ -313,27 +287,27 @@ export default function AdminPricingPage() {
     setPageNotice('');
     try {
       const isEditing = editingRuleId !== null;
-      const response = await fetch(isEditing ? `/api/v1/pricing/rules/${editingRuleId}` : '/api/v1/pricing/rules', {
-        method: isEditing ? 'PUT' : 'POST',
-        headers: adminHeaders(),
-        body: JSON.stringify({
-          baseFee,
-          ratePerKg,
-          sizeMultiplier,
-          ...(isEditing ? {} : {
-            originZoneId: ruleOriginId,
-            destinationZoneId: ruleDestId,
-            parcelSize: ruleSize,
-          }),
+      const payload = {
+        baseFee,
+        ratePerKg,
+        sizeMultiplier,
+        ...(isEditing ? {} : {
+          originZoneId: ruleOriginId,
+          destinationZoneId: ruleDestId,
+          parcelSize: ruleSize,
         }),
-      });
-      if (!response.ok) throw new Error(await readApiError(response));
+      };
+      if (isEditing) {
+        await api.put(`/api/v1/pricing/rules/${editingRuleId}`, payload);
+      } else {
+        await api.post('/api/v1/pricing/rules', payload);
+      }
       await loadPricingData();
       setEditingRuleId(null);
       setShowRuleModal(false);
       setPageNotice(isEditing ? 'Pricing rule updated successfully.' : 'Pricing rule created successfully.');
     } catch (error) {
-      setPageError(error instanceof Error ? error.message : 'Unable to create the pricing rule.');
+      setPageError(readApiError(error, 'Unable to save the pricing rule.'));
     } finally {
       setIsSaving(false);
     }
