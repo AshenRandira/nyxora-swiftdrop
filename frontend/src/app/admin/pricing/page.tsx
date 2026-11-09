@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import AppShell from '@/components/layout/AppShell';
+import { authStorage } from '@/lib/auth';
 import {
   MapPin,
   Layers,
@@ -97,10 +98,13 @@ export default function AdminPricingPage() {
   const [pageError, setPageError] = useState('');
   const [pageNotice, setPageNotice] = useState('');
 
-  const adminHeaders = useCallback(() => ({
-    'Authorization': `Bearer ${localStorage.getItem('swiftdrop_access_token') || ''}`,
-    'Content-Type': 'application/json',
-  }), []);
+  const adminHeaders = useCallback(() => {
+    const token = authStorage.getAccessToken();
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    };
+  }, []);
 
   const loadPricingData = useCallback(async () => {
     const [zonesRes, rulesRes] = await Promise.all([

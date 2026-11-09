@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import AppShell from '@/components/layout/AppShell';
+import { authStorage } from '@/lib/auth';
 import {
   Truck,
   Store,
@@ -65,6 +66,14 @@ async function getApiErrorMessage(response: Response, fallback: string) {
   }
 }
 
+function getAdminHeaders() {
+  const token = authStorage.getAccessToken();
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+  };
+}
+
 export default function AdminApprovalsPage() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [filterRole, setFilterRole] = useState<string>('ALL');
@@ -100,10 +109,7 @@ export default function AdminApprovalsPage() {
         size: '10',
       });
       const res = await fetch(`/api/v1/auth/admin/users?${params.toString()}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('swiftdrop_access_token') || ''}`,
-        },
+        headers: getAdminHeaders(),
         signal,
       });
 
@@ -163,10 +169,7 @@ export default function AdminApprovalsPage() {
 
     try {
       const response = await fetch(`/api/v1/auth/admin/users/${encodeURIComponent(partner.id)}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('swiftdrop_access_token') || ''}`,
-        },
+        headers: getAdminHeaders(),
       });
 
       if (!response.ok) {
@@ -204,10 +207,7 @@ export default function AdminApprovalsPage() {
     try {
       const res = await fetch(`/api/v1/auth/admin/users/${partner.id}/approve`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('swiftdrop_access_token') || ''}`,
-        },
+        headers: getAdminHeaders(),
       });
 
       if (!res.ok) {
@@ -249,10 +249,7 @@ export default function AdminApprovalsPage() {
 
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('swiftdrop_access_token') || ''}`,
-        },
+        headers: getAdminHeaders(),
         body: JSON.stringify({ reason }),
       });
 
