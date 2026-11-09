@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
 import AppShell from '@/components/layout/AppShell';
-import { authStorage } from '@/lib/auth';
+import api from '@/lib/api';
 import {
   Truck,
   Store,
@@ -57,21 +58,16 @@ interface PartnerDetail {
   };
 }
 
-async function getApiErrorMessage(response: Response, fallback: string) {
-  try {
-    const payload = await response.json();
-    return payload.detail || payload.message || payload.title || fallback;
-  } catch {
-    return fallback;
+function getApiErrorMessage(error: unknown, fallback: string) {
+  if (axios.isAxiosError(error)) {
+    const payload = error.response?.data as {
+      detail?: string;
+      message?: string;
+      title?: string;
+    } | undefined;
+    return payload?.detail || payload?.message || payload?.title || fallback;
   }
-}
-
-function getAdminHeaders() {
-  const token = authStorage.getAccessToken();
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-  };
+  return error instanceof Error ? error.message : fallback;
 }
 
 export default function AdminApprovalsPage() {
@@ -108,27 +104,20 @@ export default function AdminApprovalsPage() {
         page: String(currentPage),
         size: '10',
       });
-      const res = await fetch(`/api/v1/auth/admin/users?${params.toString()}`, {
-        headers: getAdminHeaders(),
+      const { data } = await api.get(`/api/v1/auth/admin/users?${params.toString()}`, {
         signal,
       });
-
-      if (!res.ok) {
-        throw new Error(await getApiErrorMessage(res, 'Unable to load the partner queue.'));
-      }
-
-      const data = await res.json();
       const list = Array.isArray(data) ? data : data.content;
       const nextPartners = Array.isArray(list) ? list : [];
       setPartners(nextPartners);
       setTotalPages(Array.isArray(data) ? 1 : Math.max(1, data.totalPages || 1));
       setTotalElements(Array.isArray(data) ? nextPartners.length : data.totalElements ?? nextPartners.length);
     } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
+      if (axios.isCancel(error)) return;
       setPartners([]);
       setTotalPages(1);
       setTotalElements(0);
-      setLoadError(error instanceof Error ? error.message : 'Unable to load the partner queue.');
+      setLoadError(getApiErrorMessage(error, 'Unable to load the partner queue.'));
     } finally {
       if (!signal?.aborted) setIsLoading(false);
     }
@@ -168,17 +157,12 @@ export default function AdminApprovalsPage() {
     setDetailLoading(true);
 
     try {
-      const response = await fetch(`/api/v1/auth/admin/users/${encodeURIComponent(partner.id)}`, {
-        headers: getAdminHeaders(),
-      });
-
-      if (!response.ok) {
-        throw new Error(await getApiErrorMessage(response, 'Unable to load partner details.'));
-      }
-
-      setPartnerDetail(await response.json());
+      const { data } = await api.get<PartnerDetail>(
+        `/api/v1/auth/admin/users/${encodeURIComponent(partner.id)}`,
+      );
+      setPartnerDetail(data);
     } catch (error) {
-      setDetailError(error instanceof Error ? error.message : 'Unable to load partner details.');
+      setDetailError(getApiErrorMessage(error, 'Unable to load partner details.'));
     } finally {
       setDetailLoading(false);
     }
@@ -205,14 +189,7 @@ export default function AdminApprovalsPage() {
     setBusyPartnerId(partner.id);
     setNotice(null);
     try {
-      const res = await fetch(`/api/v1/auth/admin/users/${partner.id}/approve`, {
-        method: 'POST',
-        headers: getAdminHeaders(),
-      });
-
-      if (!res.ok) {
-        throw new Error(await getApiErrorMessage(res, 'The approval could not be saved.'));
-      }
+      await api.post(`/api/v1/auth/admin/users/${partner.id}/approve`);
 
       setPartners(prev => prev.map(p => p.id === partner.id ? { ...p, status: 'ACTIVE', statusReason: undefined } : p));
       setNotice({ type: 'success', message: `${partner.fullName} is now active.` });
@@ -220,7 +197,7 @@ export default function AdminApprovalsPage() {
     } catch (error) {
       setNotice({
         type: 'error',
-        message: error instanceof Error ? error.message : 'The approval could not be saved.',
+        message: getApiErrorMessage(error, 'The approval could not be saved.'),
       });
     } finally {
       setBusyPartnerId(null);
@@ -247,15 +224,7 @@ export default function AdminApprovalsPage() {
         ? `/api/v1/auth/admin/users/${target.id}/reject`
         : `/api/v1/auth/admin/users/${target.id}/suspend`;
 
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: getAdminHeaders(),
-        body: JSON.stringify({ reason }),
-      });
-
-      if (!res.ok) {
-        throw new Error(await getApiErrorMessage(res, 'The account decision could not be saved.'));
-      }
+      await api.post(endpoint, { reason });
 
       const nextStatus = action === 'REJECT' ? 'REJECTED' : 'SUSPENDED';
       setPartners(prev => prev.map(p => p.id === target.id ? { ...p, status: nextStatus, statusReason: reason } : p));
@@ -270,7 +239,7 @@ export default function AdminApprovalsPage() {
     } catch (error) {
       setNotice({
         type: 'error',
-        message: error instanceof Error ? error.message : 'The account decision could not be saved.',
+        message: getApiErrorMessage(error, 'The account decision could not be saved.'),
       });
     } finally {
       setBusyPartnerId(null);
