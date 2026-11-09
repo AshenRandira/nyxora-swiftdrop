@@ -178,6 +178,32 @@ cd services/parcel-service
 mvn spring-boot:run
 ```
 
+### 4. Seed Demo Logistics Data
+
+After the frontend, gateway, auth service, and parcel service are running, populate the real
+`parcel_db` tables with a reusable Sri Lankan demo pricing matrix:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\seed-demo-logistics.ps1
+```
+
+The seeder is idempotent: it preserves existing zones and pricing rules and creates only missing
+records. The completed demo dataset contains:
+
+- 6 active delivery zones: Colombo, Kandy, Galle, Jaffna, Kurunegala, and Trincomalee
+- 90 bidirectional pricing rules covering every zone pair and `SMALL`, `MEDIUM`, and `LARGE`
+- Live quote verification for all 90 standard combinations plus Express and Merchant samples
+
+The generated distances and tariffs are demonstration values, not production rates. To use a
+different local admin account or skip quote verification:
+
+```powershell
+.\scripts\seed-demo-logistics.ps1 `
+  -AdminEmail "admin@swiftdrop.lk" `
+  -AdminPassword "your-local-password" `
+  -SkipQuoteVerification
+```
+
 ---
 
 ## 🧪 Testing & Quality Assurance
