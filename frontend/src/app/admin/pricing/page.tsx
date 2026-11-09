@@ -49,21 +49,6 @@ interface QuoteResponse {
   totalFee: number;
 }
 
-const SEED_ZONES: DeliveryZone[] = [
-  { id: 1, zoneCode: 'WP-COL-01', zoneName: 'Colombo Central Metro', district: 'Colombo', baseSurcharge: 0, isActive: true },
-  { id: 2, zoneCode: 'WP-GAM-01', zoneName: 'Gampaha Industrial Hub', district: 'Gampaha', baseSurcharge: 25, isActive: true },
-  { id: 3, zoneCode: 'CP-KAN-01', zoneName: 'Kandy Urban District', district: 'Kandy', baseSurcharge: 50, isActive: true },
-  { id: 4, zoneCode: 'SP-GAL-01', zoneName: 'Galle Coastal Belt', district: 'Galle', baseSurcharge: 40, isActive: true },
-];
-
-const SEED_RULES: PricingRule[] = [
-  { id: 1, originZone: SEED_ZONES[0], destinationZone: SEED_ZONES[2], baseFee: 450, ratePerKg: 120, parcelSize: 'MEDIUM', sizeMultiplier: 1.25 },
-  { id: 2, originZone: SEED_ZONES[0], destinationZone: SEED_ZONES[1], baseFee: 250, ratePerKg: 80, parcelSize: 'SMALL', sizeMultiplier: 1.0 },
-  { id: 3, originZone: SEED_ZONES[0], destinationZone: SEED_ZONES[3], baseFee: 550, ratePerKg: 140, parcelSize: 'LARGE', sizeMultiplier: 1.5 },
-];
-
-const roundCurrency = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
-
 const readApiError = async (response: Response) => {
   try {
     const payload = await response.json();
@@ -76,8 +61,8 @@ const readApiError = async (response: Response) => {
 };
 
 export default function AdminPricingPage() {
-  const [zones, setZones] = useState<DeliveryZone[]>(SEED_ZONES);
-  const [rules, setRules] = useState<PricingRule[]>(SEED_RULES);
+  const [zones, setZones] = useState<DeliveryZone[]>([]);
+  const [rules, setRules] = useState<PricingRule[]>([]);
   const [activeTab, setActiveTab] = useState<'SIMULATOR' | 'ZONES' | 'RULES'>('SIMULATOR');
 
   // Modals
@@ -93,22 +78,20 @@ export default function AdminPricingPage() {
   const [newBaseSurcharge, setNewBaseSurcharge] = useState('25.00');
 
   // New Rule Form
-  const [ruleOriginId, setRuleOriginId] = useState<number>(1);
-  const [ruleDestId, setRuleDestId] = useState<number>(3);
+  const [ruleOriginId, setRuleOriginId] = useState<number>(0);
+  const [ruleDestId, setRuleDestId] = useState<number>(0);
   const [ruleBaseFee, setRuleBaseFee] = useState('400.00');
   const [ruleRatePerKg, setRuleRatePerKg] = useState('100.00');
   const [ruleSize, setRuleSize] = useState<'SMALL' | 'MEDIUM' | 'LARGE'>('MEDIUM');
   const [ruleMultiplier, setRuleMultiplier] = useState('1.25');
 
   // Simulator State
-  const [calcOrigin, setCalcOrigin] = useState<number>(1);
-  const [calcDest, setCalcDest] = useState<number>(3);
+  const [calcOrigin, setCalcOrigin] = useState<number>(0);
+  const [calcDest, setCalcDest] = useState<number>(0);
   const [calcWeight, setCalcWeight] = useState<number>(3.5);
   const [calcSize, setCalcSize] = useState<'SMALL' | 'MEDIUM' | 'LARGE'>('MEDIUM');
   const [calcTier, setCalcTier] = useState<'STANDARD' | 'MERCHANT' | 'EXPRESS'>('EXPRESS');
   const [quoteResult, setQuoteResult] = useState<QuoteResponse | null>(null);
-  const [quoteSource, setQuoteSource] = useState<'BACKEND' | 'OFFLINE'>('OFFLINE');
-  const [pricingDataSource, setPricingDataSource] = useState<'BACKEND' | 'OFFLINE'>('OFFLINE');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [pageError, setPageError] = useState('');
@@ -129,20 +112,33 @@ export default function AdminPricingPage() {
     if (!rulesRes.ok) throw new Error(await readApiError(rulesRes));
 
     const [zData, rData] = await Promise.all([zonesRes.json(), rulesRes.json()]);
-    setZones(Array.isArray(zData) ? zData : []);
-    setRules(Array.isArray(rData) ? rData : []);
-    setPricingDataSource(
-      zonesRes.headers.get('X-SwiftDrop-Data-Source') === 'seed'
-        || rulesRes.headers.get('X-SwiftDrop-Data-Source') === 'seed'
-        ? 'OFFLINE'
-        : 'BACKEND'
-    );
+    const nextZones = Array.isArray(zData) ? zData : [];
+    const nextRules = Array.isArray(rData) ? rData : [];
+    const firstZoneId = nextZones[0]?.id ?? 0;
+    const secondZoneId = nextZones[1]?.id ?? firstZoneId;
+
+    setZones(nextZones);
+    setRules(nextRules);
+    setCalcOrigin((current) => nextZones.some((zone) => zone.id === current) ? current : firstZoneId);
+    setCalcDest((current) => nextZones.some((zone) => zone.id === current) ? current : secondZoneId);
+    setRuleOriginId((current) => nextZones.some((zone) => zone.id === current) ? current : firstZoneId);
+    setRuleDestId((current) => nextZones.some((zone) => zone.id === current) ? current : secondZoneId);
+
+    if (nextZones.length < 2) {
+      setQuoteResult(null);
+      setPageError('');
+    }
   }, [adminHeaders]);
 
-  // Load live data when available; seed data keeps the simulator usable offline.
+  // Load persisted pricing data before enabling the simulator.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- this effect synchronizes remote pricing data into the page state.
-    loadPricingData().catch(() => undefined);
+    loadPricingData().catch((error) => {
+      setZones([]);
+      setRules([]);
+      setQuoteResult(null);
+      setPageError(error instanceof Error ? error.message : 'Unable to load pricing data.');
+    });
   }, [loadPricingData]);
 
   const handleRefreshPricingData = async () => {
@@ -159,58 +155,19 @@ export default function AdminPricingPage() {
     }
   };
 
-  const runOfflineQuoteCalculation = useCallback((origin: DeliveryZone, dest: DeliveryZone) => {
-    const rule = rules.find(r =>
-      r.originZone.id === origin.id &&
-      r.destinationZone.id === dest.id &&
-      r.parcelSize === calcSize
-    );
-
-    const baseFee = rule ? rule.baseFee : 450;
-    const ratePerKg = rule ? rule.ratePerKg : 120;
-    const sizeMultipliers = { 'SMALL': 1.0, 'MEDIUM': 1.25, 'LARGE': 1.5 };
-    const sizeMult = rule ? rule.sizeMultiplier : sizeMultipliers[calcSize];
-    const standardWeightCharge = roundCurrency(calcWeight * ratePerKg);
-    let displayedBaseFee = baseFee;
-    let displayedWeightCharge = standardWeightCharge;
-    let subtotal = roundCurrency((displayedBaseFee + displayedWeightCharge) * sizeMult);
-    const zoneSurcharges = dest.baseSurcharge;
-    let discount = 0;
-    let expressSur = 0;
-    let total = subtotal + zoneSurcharges;
-
-    if (calcTier === 'MERCHANT') {
-      displayedBaseFee = roundCurrency(baseFee * 0.85);
-      displayedWeightCharge = roundCurrency(standardWeightCharge * 0.85);
-      subtotal = roundCurrency((displayedBaseFee + displayedWeightCharge) * sizeMult);
-      discount = roundCurrency((baseFee + standardWeightCharge) - (displayedBaseFee + displayedWeightCharge));
-      total = subtotal + zoneSurcharges;
-    } else if (calcTier === 'EXPRESS') {
-      expressSur = roundCurrency(subtotal * 0.50);
-      total += expressSur;
+  const runQuoteCalculation = useCallback(async (signal?: AbortSignal) => {
+    if (zones.length < 2) {
+      setQuoteResult(null);
+      setPageError('');
+      return;
     }
 
-    setQuoteResult({
-      appliedTier: calcTier,
-      baseFee: displayedBaseFee,
-      weightCharge: displayedWeightCharge,
-      sizeMultiplier: sizeMult,
-      zoneSurcharge: zoneSurcharges,
-      discountAmount: roundCurrency(discount),
-      expressSurcharge: expressSur,
-      totalFee: Math.max(0, roundCurrency(total))
-    });
-    setQuoteSource('OFFLINE');
-  }, [calcSize, calcTier, calcWeight, rules]);
-
-  const runQuoteCalculation = useCallback(async (signal?: AbortSignal) => {
     const origin = zones.find(z => z.id === calcOrigin) || zones[0];
     const dest = zones.find(z => z.id === calcDest) || zones[1] || zones[0];
     if (!origin || !dest) return;
 
     if (origin.id === dest.id) {
       setQuoteResult(null);
-      setQuoteSource('OFFLINE');
       setPageError('Origin and destination zones must be different.');
       return;
     }
@@ -231,25 +188,19 @@ export default function AdminPricingPage() {
 
       if (!response.ok) {
         const message = await readApiError(response);
-        if (response.status < 500) {
-          setQuoteResult(null);
-          setQuoteSource('OFFLINE');
-          setPageError(message);
-          return;
-        }
-
-        runOfflineQuoteCalculation(origin, dest);
+        setQuoteResult(null);
+        setPageError(message);
         return;
       }
 
       setQuoteResult(await response.json());
-      setQuoteSource('BACKEND');
       setPageError('');
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
-      runOfflineQuoteCalculation(origin, dest);
+      setQuoteResult(null);
+      setPageError(error instanceof Error ? error.message : 'Unable to calculate a live quote.');
     }
-  }, [adminHeaders, calcDest, calcOrigin, calcSize, calcTier, calcWeight, runOfflineQuoteCalculation, zones]);
+  }, [adminHeaders, calcDest, calcOrigin, calcSize, calcTier, calcWeight, zones]);
 
   // Recalculate through the real pricing engine whenever parameters change.
   useEffect(() => {
@@ -457,12 +408,6 @@ export default function AdminPricingPage() {
               <p className="text-sm text-slate-500 mt-1">
                 Manage island-wide logistics zones, inter-zone tariffs, and live quotation calculation.
               </p>
-              {pricingDataSource === 'OFFLINE' && (
-                <div className="inline-flex items-center gap-1.5 mt-2 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-800">
-                  <AlertCircle className="h-3.5 w-3.5" />
-                  Showing offline seed data — changes require the parcel service.
-                </div>
-              )}
             </div>
 
             <div className="flex items-center gap-2.5">
@@ -483,7 +428,9 @@ export default function AdminPricingPage() {
               </button>
               <button
                 onClick={openNewRuleModal}
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 shadow-xs transition-colors cursor-pointer"
+                disabled={zones.length < 2}
+                title={zones.length < 2 ? 'Create at least two delivery zones first.' : undefined}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 shadow-xs transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Pricing Rule</span>
@@ -530,7 +477,7 @@ export default function AdminPricingPage() {
             </div>
             <div>
               <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Suite Health</div>
-              <div className="text-xl font-bold text-slate-900">82 Tests Pass</div>
+              <div className="text-xl font-bold text-slate-900">Automated</div>
             </div>
           </div>
         </div>
@@ -577,6 +524,12 @@ export default function AdminPricingPage() {
         {/* Tab 1: Live Strategy Simulator (Act 2A Demo) */}
         {activeTab === 'SIMULATOR' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            {zones.length < 2 && (
+              <div role="status" className="lg:col-span-12 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                Add at least two delivery zones before creating pricing rules or calculating a quote.
+              </div>
+            )}
 
             {/* Left Controls Card */}
             <div className="lg:col-span-6 bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
@@ -839,7 +792,7 @@ export default function AdminPricingPage() {
                       Grand Total Fee (LKR)
                     </span>
                     <span className="text-[11px] text-slate-400">
-                      {quoteSource === 'BACKEND' ? 'Live PricingEngine quote' : 'Offline preview - backend unavailable'}
+                      Live PricingEngine quote
                     </span>
                   </div>
                   <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight">
